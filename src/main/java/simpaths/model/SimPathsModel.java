@@ -52,6 +52,7 @@ import simpaths.data.Parameters;
 import simpaths.model.decisions.DecisionTests;
 import simpaths.model.decisions.ManagerPopulateGrids;
 import simpaths.model.enums.*;
+import simpaths.model.enums.baselineDataEnums.ShockTypes;
 import simpaths.model.taxes.DonorTaxUnit;
 import simpaths.data.filters.FertileFilter;
 import simpaths.model.taxes.DonorTaxUnitPolicy;
@@ -179,6 +180,12 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 
 	@GUIparameter(description = "Average over donor pool when imputing transfer payments")
 	public boolean donorPoolAveraging = true;
+
+	@GUIparameter(description = "Introduce health shock in the initial population")
+	private boolean healthShock = true;
+
+	@GUIparameter(description = "Introduce partnership shock in the initial population")
+	private boolean partnershipShock = true;
 
 	private int ordering = Parameters.MODEL_ORDERING;    //Used in Scheduling of model events.  Schedule model events at the same time as the collector and observer events, but a lower order, so will be fired before the collector and observer have updated.
 
@@ -412,6 +419,9 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 	@Override
 	public void buildSchedule() {
 
+		EventGroup initialPeriodShocks = new EventGroup();
+		initialPeriodShocks.addEvent(this, Processes.InitialPopulationShocks);
+
 		addEventToAllYears(Processes.StartYear);
 
 		if (enableIntertemporalOptimisations) firstYearSched.addEvent(this, Processes.RationalOptimisation);
@@ -520,6 +530,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		addEventToAllYears(Processes.UpdateYear);
 
 		// UPDATE EVENT QUEUE
+		getEngine().getEventQueue().scheduleOnce(initialPeriodShocks, startYear, ordering-1);
 		getEngine().getEventQueue().scheduleOnce(firstYearSched, startYear, ordering);
 		getEngine().getEventQueue().scheduleRepeat(yearlySchedule, startYear+1, ordering, 1.);
 
@@ -584,6 +595,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		RationalOptimisation,
 		UpdateYear,
 		CheckForEmptyBenefitUnits,
+		InitialPopulationShocks
 	}
 
 	@Override
@@ -710,6 +722,12 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 					removeBenefitUnit(benefitUnit);
 				}
 				break;
+			case InitialPopulationShocks:
+				/*
+				Introduce shocks to health, employment, and partnership status in the initial period
+				 */
+				if (healthShock) introduceShock(ShockTypes.Health);
+				if (partnershipShock) introduceShock(ShockTypes.Partnership);
 			default:
 				break;
 		}
@@ -1076,6 +1094,57 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		}
 	}
 
+	/**
+	 Method to introduce shocks in the initial population.
+	 Shocks are applied for the "Complexity" project.
+	 */
+	private void introduceShock(ShockTypes shockType) {
+		switch (shockType) {
+			case Health:
+				for (Person p : persons) {
+					if (p.getBenefitUnit().getOccupancy() != null) {
+						switch (p.getBenefitUnit().getOccupancy()) {
+							case Couple:
+								if (p.getPartner() != null && p.getHourlyWageRate() < p.getPartner().getHourlyWageRate()) {
+									if (p.getPartner().getDhe().getValue() > 1.) {
+										p.getPartner().setDhe(Dhe.Poor);
+										p.getPartner().setDhe_lag1(Dhe.Poor);
+									}
+								} else {
+									if (p.getDhe().getValue() > 1.) {
+										p.setDhe(Dhe.Poor); // If p has potential earnings higher than partner, set health to zero
+										p.setDhe_lag1(Dhe.Poor);
+									}
+								}
+							case Single_Male:
+								if (p.getDhe().getValue() > 1.) {
+									p.setDhe(Dhe.Poor);
+									p.setDhe_lag1(Dhe.Poor);
+								}
+							case Single_Female:
+								if (p.getDhe().getValue() > 1.) {
+									p.setDhe(Dhe.Poor);
+									p.setDhe_lag1(Dhe.Poor);
+								}
+						}
+					} else {
+						System.out.println("Null occupancy");
+						removePerson(p);
+					}
+				}
+			case Partnership:
+				List<Person> personsToLeavePartners = new ArrayList<>();
+				for (BenefitUnit bu : benefitUnits) {
+					if (bu.getOccupancy() != null && bu.getOccupancy().equals(Occupancy.Couple)) {
+						// To remain consistent with model assumptions in the considerCohabitation part, female partner leaves.
+						personsToLeavePartners.add(bu.getFemale());
+					}
+				}
+				for (Person p : personsToLeavePartners) {
+					p.leavePartner();
+				}
+		}
+	}
 
 	/**********************************************************
 	 *
@@ -3269,6 +3338,22 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 
 	public boolean isAlignEmployment() {
 		return alignEmployment;
+	}
+
+	public boolean isHealthShock() {
+		return healthShock;
+	}
+
+	public void setHealthShock(boolean healthShock) {
+		this.healthShock = healthShock;
+	}
+
+	public boolean isPartnershipShock() {
+		return partnershipShock;
+	}
+
+	public void setPartnershipShock(boolean partnershipShock) {
+		this.partnershipShock = partnershipShock;
 	}
 
 

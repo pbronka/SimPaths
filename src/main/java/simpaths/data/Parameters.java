@@ -302,6 +302,7 @@ public class Parameters {
     public static boolean trainingFlag = false;
     public static final String INPUT_DIRECTORY_INITIAL_POPULATIONS = INPUT_DIRECTORY + "InitialPopulations" + File.separator; //Path to directory containing initial population for each year
     public static final String EUROMOD_OUTPUT_DIRECTORY = INPUT_DIRECTORY + "EUROMODoutput" + File.separator;
+    public static final String BASELINE_DATA_DIRECTORY = WORKING_DIRECTORY + File.separator + "output" + File.separator + "baselineNoShock" + File.separator + "csv" + File.separator; // Path to directory containing output CSV files with baseline data for the complexity project
     public static final String EUROMOD_TRAINING_DIRECTORY = EUROMOD_OUTPUT_DIRECTORY + "training" + File.separator;
     public static final String EUROMODpolicyScheduleFilename = "EUROMODpolicySchedule";
     public static final String DatabaseCountryYearFilename = "DatabaseCountryYear";

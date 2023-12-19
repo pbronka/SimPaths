@@ -2,60 +2,55 @@
 package simpaths.model;
 
 // import Java packages
-import java.util.*;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.random.RandomGenerator;
-import java.util.concurrent.TimeUnit;
 
-// import plug-in packages
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityTransaction;
 import jakarta.persistence.Transient;
-import org.apache.commons.lang3.ArrayUtils;
-import org.jetbrains.annotations.NotNull;
-import simpaths.data.IEvaluation;
-import simpaths.data.MahalanobisDistance;
-import simpaths.data.RootSearch;
-import simpaths.experiment.SimPathsCollector;
-import simpaths.model.decisions.DecisionParams;
-import microsim.alignment.outcome.ResamplingAlignment;
-import microsim.event.*;
-import microsim.event.EventListener;
-import org.apache.commons.collections4.keyvalue.MultiKey;
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.collections4.MapIterator;
-import org.apache.commons.collections4.map.LinkedMap;
-import org.apache.commons.collections4.map.MultiKeyMap;
-import org.apache.commons.lang3.tuple.Triple;
-import org.apache.commons.math3.util.Pair;
-import org.apache.log4j.Logger;
-import org.apache.commons.lang3.time.StopWatch;
-
-// import JAS-mine packages
 import microsim.alignment.outcome.AlignmentOutcomeClosure;
+import microsim.alignment.outcome.ResamplingAlignment;
 import microsim.annotation.GUIparameter;
 import microsim.data.MultiKeyCoefficientMap;
 import microsim.data.db.DatabaseUtils;
 import microsim.engine.AbstractSimulationManager;
 import microsim.engine.SimulationEngine;
+import microsim.event.EventGroup;
+import microsim.event.EventListener;
+import microsim.event.SystemEvent;
+import microsim.event.SystemEventType;
 import microsim.matching.IterativeRandomMatching;
 import microsim.matching.IterativeSimpleMatching;
 import microsim.matching.MatchingClosure;
 import microsim.matching.MatchingScoreClosure;
-
-// import LABOURsim packages
-import simpaths.data.Parameters;
-import simpaths.model.decisions.DecisionTests;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapIterator;
+import org.apache.commons.collections4.keyvalue.MultiKey;
+import org.apache.commons.collections4.map.LinkedMap;
+import org.apache.commons.collections4.map.MultiKeyMap;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.time.StopWatch;
+import org.apache.commons.lang3.tuple.Triple;
+import org.apache.commons.math3.util.Pair;
+import org.apache.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
+import simpaths.data.*;
+import simpaths.data.filters.FertileFilter;
+import simpaths.experiment.SimPathsCollector;
+import simpaths.model.decisions.DecisionParams;
 import simpaths.model.decisions.ManagerPopulateGrids;
 import simpaths.model.enums.*;
+import simpaths.model.enums.baselineDataEnums.EntityType;
+import simpaths.model.enums.baselineDataEnums.IndicatorValueType;
+import simpaths.model.enums.baselineDataEnums.IntValueType;
 import simpaths.model.enums.baselineDataEnums.ShockTypes;
+import simpaths.model.enums.baselineDataEnums.Dcpst_ValueType;
+import simpaths.model.enums.baselineDataEnums.Les_c4_ValueType;
 import simpaths.model.taxes.DonorTaxUnit;
-import simpaths.data.filters.FertileFilter;
 import simpaths.model.taxes.DonorTaxUnitPolicy;
+
+import java.sql.*;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.random.RandomGenerator;
 
 
 /**
@@ -236,11 +231,17 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 	@Transient
 	SimPathsCollector collector;
 
+	@Transient
+	private BaselineData baselineData;
+
 	EventGroup firstYearSched = new EventGroup();
 	EventGroup yearlySchedule = new EventGroup();
 
 	@GUIparameter(description = "tick to project social care")
 	private boolean projectSocialCare = false;
+
+	@GUIparameter(description = "Untick to load outcome of all processes other than the shocked one from baseline dataset")
+	private boolean shockPropagation = false; // If false, outcome of all processes except employment process will be read from the baseline data. B. That means that the shock to employment only affects employment, the other variables follow the same evolution as in the baseline (ie. they are as employment continued on its baseline trajectory)
 
 	@GUIparameter(description = "tick to enable intertemporal optimised consumption and labour decisions")
 	private boolean enableIntertemporalOptimisations = false;
@@ -362,6 +363,21 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		// creates initial population (Person and BenefitUnit objects) based on data in input database.
 		// Note that the population may be cropped to simulate a smaller population depending on user choices in the GUI.
 		createInitialPopulationDataStructures();
+
+		if (!shockPropagation) {
+			baselineData = new BaselineData(); // Instantiate BaselineData object, loading baseline data for the complexity project
+			List<String> includedColumns = new ArrayList<>();
+			includedColumns.addAll(Arrays.asList("dag", "dcpen", "dcpex", "dcpst", "les_c4")); // Note that only one list of variables exists. If a given variable does not exists for an entity type - e.g. age for benefit units - it will simply not be included in the map.
+			baselineData.loadBaselineData(Parameters.BASELINE_DATA_DIRECTORY + "Person.csv", includedColumns, "id_Person", EntityType.Person);
+			baselineData.loadBaselineData(Parameters.BASELINE_DATA_DIRECTORY + "BenefitUnit.csv", includedColumns, "id_BenefitUnit", EntityType.BenefitUnit);
+
+			// TODO: Remove later, this is for testing retrieval
+			// Retrival examples below
+			int dage = baselineData.getValue(EntityType.Person, 2011, 1, "dag", IntValueType.INSTANCE);
+			Indicator dcpen = baselineData.getValue(EntityType.Person, 2011, 1, "dcpen", IndicatorValueType.INSTANCE);
+			Dcpst dcpst = baselineData.getValue(EntityType.Person, 2011, 1, "dcpst", Dcpst_ValueType.INSTANCE);
+			Les_c4 les_c4 = baselineData.getValue(EntityType.Person, 2011, 1, "les_c4", Les_c4_ValueType.INSTANCE);
+		}
 
 		// initialise variables used to match marriage unions
 		createDataStructuresForMarriageMatching();
@@ -3354,6 +3370,18 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 
 	public void setPartnershipShock(boolean partnershipShock) {
 		this.partnershipShock = partnershipShock;
+	}
+
+	public BaselineData getBaselineData() {
+		return baselineData;
+	}
+
+	public boolean isShockPropagation() {
+		return shockPropagation;
+	}
+
+	public void setShockPropagation(boolean shockPropagation) {
+		this.shockPropagation = shockPropagation;
 	}
 
 

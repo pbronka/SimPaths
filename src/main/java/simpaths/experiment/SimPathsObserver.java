@@ -61,7 +61,7 @@ public class SimPathsObserver extends AbstractSimulationObserverManager implemen
 	private static Logger log = Logger.getLogger(SimPathsObserver.class);
 	
 	@GUIparameter(description="Toggle to turn all charts on/off")
-	private Boolean showCharts = true;
+	private Boolean showCharts = false;
 
 	@GUIparameter(description = "Enable additional charts")
 	private Boolean showAdditionalCharts = true;

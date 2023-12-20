@@ -367,7 +367,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		if (!shockPropagation) {
 			baselineData = new BaselineData(); // Instantiate BaselineData object, loading baseline data for the complexity project
 			List<String> includedColumns = new ArrayList<>();
-			includedColumns.addAll(Arrays.asList("dag", "dcpen", "dcpex", "dcpst", "les_c4")); // Note that only one list of variables exists. If a given variable does not exists for an entity type - e.g. age for benefit units - it will simply not be included in the map.
+			includedColumns.addAll(Arrays.asList("dag", "ydses_c5", "dhe", "region", "deh_c3", "les_c4", "dhhtp_c4", "dlltsd", "weight")); // List of variables required by health regressions
 			baselineData.loadBaselineData(Parameters.BASELINE_DATA_DIRECTORY + "Person.csv", includedColumns, "id_Person", EntityType.Person);
 			baselineData.loadBaselineData(Parameters.BASELINE_DATA_DIRECTORY + "BenefitUnit.csv", includedColumns, "id_BenefitUnit", EntityType.BenefitUnit);
 
@@ -435,8 +435,32 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 	@Override
 	public void buildSchedule() {
 
+		/*
+		First group of events: shocks applied to the initial population in the first period
+		 */
 		EventGroup initialPeriodShocks = new EventGroup();
 		initialPeriodShocks.addEvent(this, Processes.InitialPopulationShocks);
+
+		/*
+		Second group of events: to run when shockPropagation = false and outcome of processes is loaded from the baseline
+		 */
+		EventGroup reducedYearlySchedule = new EventGroup();
+		reducedYearlySchedule.addEvent(this, Processes.StartYear);
+		reducedYearlySchedule.addEvent(this, Processes.UpdateParameters);
+		reducedYearlySchedule.addCollectionEvent(persons, Person.Processes.Ageing, false);
+		reducedYearlySchedule.addEvent(this, Processes.CheckForEmptyBenefitUnits);
+		reducedYearlySchedule.addEvent(this, Processes.PopulationAlignment);
+		reducedYearlySchedule.addCollectionEvent(benefitUnits, BenefitUnit.Processes.Update);
+
+		if (healthShock) reducedYearlySchedule.addCollectionEvent(persons, Person.Processes.Health);
+
+		reducedYearlySchedule.addEvent(this, Processes.CheckForEmptyBenefitUnits);
+		reducedYearlySchedule.addEvent(this, Processes.EndYear);
+		reducedYearlySchedule.addEvent(this, Processes.UpdateYear);
+
+		/*
+		Third group of events: standard yearly schedule with all events, used when shockPropagation = true
+		 */
 
 		addEventToAllYears(Processes.StartYear);
 

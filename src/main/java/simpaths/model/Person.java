@@ -1,29 +1,27 @@
 package simpaths.model;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.util.*;
-import java.util.random.RandomGenerator;
-
 import jakarta.persistence.*;
-
-import org.hibernate.query.sqm.function.SelfRenderingOrderedSetAggregateFunctionSqlAstExpression;
-import simpaths.data.ManagerRegressions;
-import simpaths.data.RegressionNames;
-import simpaths.model.enums.*;
-import microsim.statistics.Series;
-import org.apache.commons.lang3.builder.EqualsBuilder;
-import org.apache.commons.lang3.builder.HashCodeBuilder;
-import org.apache.log4j.Logger;
-
-import simpaths.data.Parameters;
-import simpaths.model.decisions.DecisionParams;
 import microsim.agent.Weight;
 import microsim.data.db.PanelEntityKey;
 import microsim.engine.SimulationEngine;
 import microsim.event.EventListener;
 import microsim.statistics.IDoubleSource;
 import microsim.statistics.IIntSource;
+import microsim.statistics.Series;
+import org.apache.commons.lang3.builder.EqualsBuilder;
+import org.apache.commons.lang3.builder.HashCodeBuilder;
+import org.apache.log4j.Logger;
+import simpaths.data.ManagerRegressions;
+import simpaths.data.Parameters;
+import simpaths.data.RegressionNames;
+import simpaths.model.decisions.DecisionParams;
+import simpaths.model.enums.*;
+import simpaths.model.enums.baselineDataEnums.*;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.*;
+import java.util.random.RandomGenerator;
 
 @Entity
 public class Person implements EventListener, IDoubleSource, IIntSource, Weight, Comparable<Person>
@@ -813,6 +811,7 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
         InSchool,
         LeavingSchool,
         UpdatePotentialHourlyEarnings,	//Needed to union matching and labour supply
+        UpdateHealthVariables,
     }
 
     @Override
@@ -863,6 +862,9 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
         case UpdatePotentialHourlyEarnings:
 //			System.out.println("Update wage equation for person " + this.getKey().getId() + " with age " + age + " with activity_status " + activity_status + " and activity_status_lag " + activity_status_lag + " and toLeaveSchool " + toLeaveSchool + " with education " + education);
             updateFullTimeHourlyEarnings();
+            break;
+        case UpdateHealthVariables:
+            updateHealthVariables();
             break;
         }
     }
@@ -1043,7 +1045,11 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
 	}
 
 	//Health process defines health using H1a or H1b process
-	protected void health() {		
+	protected void health() {
+
+        if (!model.isShockPropagation() && model.isHealthShock()) { // Without shock propagation, load data from the baseline datafile if health shock is enabled
+            setHealthRegressionVariablesFromBaseline();
+        }
 
 		if((dag >= 16 && dag <= 29) && Les_c4.Student.equals(les_c4) && leftEducation == false) {
             //If age is between 16 - 29 and individual has always been in education, follow process H1a:
@@ -1712,6 +1718,15 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
             }
         }
     }
+
+    protected void updateHealthVariables() { //TODO: Is this required?
+        // If noShockPropagation is on, update only variables relevant to the health processes allowed to evolve
+        dhe_lag1 = dhe; //Update lag(1) of health
+        dhm_lag1 = dhm; //Update lag(1) of mental health
+        dhm_ghq_lag1 = dhm_ghq;
+        dlltsd_lag1 = dlltsd; //Update lag(1) of long-term sick or disabled status
+    }
+
 
     protected void updateVariables(boolean initialUpdate) {
 
@@ -4086,6 +4101,41 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
         benefitUnit.removePerson(this);
         model.removePerson(this);
     }
+
+    /**
+     * This method loads values of independent variables used in health regressions from baseline data, except for lagged health and disability status
+     */
+    protected void setHealthRegressionVariablesFromBaseline() {
+        if (model.getYear() == model.getStartYear()) { // In the first year, use contemporaneous value for lags
+            if (model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear(), this.benefitUnit.getKey().getId(), "weight", DoubleValueType.INSTANCE) != null) {
+                if (model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "weight", DoubleValueType.INSTANCE) != null) {
+
+                    dag = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "dag", IntValueType.INSTANCE);
+                    dag_sq = dag * dag;
+                    this.benefitUnit.setYdses_c5_lag1(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear(), this.benefitUnit.getKey().getId(), "ydses_c5", Ydses_c5_ValueType.INSTANCE));
+                    this.benefitUnit.setRegion(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear(), this.benefitUnit.getKey().getId(), "region", Region_ValueType.INSTANCE));
+                    this.deh_c3 = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "deh_c3", Education_ValueType.INSTANCE);
+                    this.les_c4_lag1 = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "les_c4", Les_c4_ValueType.INSTANCE);
+                    this.benefitUnit.setDhhtp_c4_lag1(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear(), this.benefitUnit.getKey().getId(), "dhhtp_c4", Dhhtp_c4_ValueType.INSTANCE));
+                } else System.out.println("person unit not found. ID: " + this.getKey().getId());
+            } else System.out.println("benefit unit not found. ID: " + this.benefitUnit.getKey().getId());
+        }
+        else {
+            if (model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear()-1, this.benefitUnit.getKey().getId(), "weight", DoubleValueType.INSTANCE) != null && model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear(), this.benefitUnit.getKey().getId(), "weight", DoubleValueType.INSTANCE) != null) {
+                if (model.getBaselineData().getValue(EntityType.Person, model.getYear()-1, this.getKey().getId(), "weight", DoubleValueType.INSTANCE) != null && model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "weight", DoubleValueType.INSTANCE) != null) {
+
+                    dag = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "dag", IntValueType.INSTANCE);
+                    dag_sq = dag * dag;
+                    this.benefitUnit.setYdses_c5_lag1(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear()-1, this.benefitUnit.getKey().getId(), "ydses_c5", Ydses_c5_ValueType.INSTANCE));
+                    this.benefitUnit.setRegion(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear(), this.benefitUnit.getKey().getId(), "region", Region_ValueType.INSTANCE));
+                    this.deh_c3 = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "deh_c3", Education_ValueType.INSTANCE);
+                    this.les_c4_lag1 = model.getBaselineData().getValue(EntityType.Person, model.getYear()-1, this.getKey().getId(), "les_c4", Les_c4_ValueType.INSTANCE);
+                    this.benefitUnit.setDhhtp_c4_lag1(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear()-1, this.benefitUnit.getKey().getId(), "dhhtp_c4", Dhhtp_c4_ValueType.INSTANCE));
+                } else System.out.println("person unit not found. ID: " + this.getKey().getId());
+            } else System.out.println("benefit unit not found. ID: " + this.benefitUnit.getKey().getId());
+        }
+    }
+
     public void setYearLocal(Integer yearLocal) {
         this.yearLocal = yearLocal;
     }

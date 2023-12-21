@@ -110,7 +110,6 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
     @Enumerated(EnumType.STRING)
     private Indicator dlltsd;	//Long-term sick or disabled if = 1
     @Enumerated(EnumType.STRING)
-    @Transient
     private Indicator dlltsd_lag1; //Lag(1) of long-term sick or disabled
     @Enumerated(EnumType.STRING)
     @Column(name="need_socare")
@@ -454,7 +453,6 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
         super();
         key = new PanelEntityKey(id);
         model = (SimPathsModel) SimulationEngine.getInstance().getManager(SimPathsModel.class.getCanonicalName());
-        clonedFlag = false;
 
         healthInnov = new Random(SimulationEngine.getRnd().nextLong());
         socialCareInnov = new Random(SimulationEngine.getRnd().nextLong());
@@ -540,7 +538,6 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
         this.receivesBenefitsFlag = false;
         this.receivesBenefitsFlag_L1 = receivesBenefitsFlag;
         updateVariables(false);
-
     }
 
     //Below is a "copy constructor" for persons: it takes an original person as input, changes the ID, copies the rest of the person's properties, and creates a new person.
@@ -718,6 +715,7 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
         this.dhh_owned = originalPerson.dhh_owned;
         this.receivesBenefitsFlag = originalPerson.receivesBenefitsFlag;
         this.receivesBenefitsFlag_L1 = originalPerson.receivesBenefitsFlag_L1;
+        this.shockedPerson = Indicator.False;
     }
 
 
@@ -813,7 +811,6 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
         InSchool,
         LeavingSchool,
         UpdatePotentialHourlyEarnings,	//Needed to union matching and labour supply
-        UpdateHealthVariables,
     }
 
     @Override
@@ -864,9 +861,6 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
         case UpdatePotentialHourlyEarnings:
 //			System.out.println("Update wage equation for person " + this.getKey().getId() + " with age " + age + " with activity_status " + activity_status + " and activity_status_lag " + activity_status_lag + " and toLeaveSchool " + toLeaveSchool + " with education " + education);
             updateFullTimeHourlyEarnings();
-            break;
-        case UpdateHealthVariables:
-            updateHealthVariables();
             break;
         }
     }
@@ -1721,15 +1715,6 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
             }
         }
     }
-
-    protected void updateHealthVariables() { //TODO: Is this required?
-        // If noShockPropagation is on, update only variables relevant to the health processes allowed to evolve
-        dhe_lag1 = dhe; //Update lag(1) of health
-        dhm_lag1 = dhm; //Update lag(1) of mental health
-        dhm_ghq_lag1 = dhm_ghq;
-        dlltsd_lag1 = dlltsd; //Update lag(1) of long-term sick or disabled status
-    }
-
 
     protected void updateVariables(boolean initialUpdate) {
 

@@ -141,7 +141,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 
 	@GUIparameter(description = "If unchecked, will use the standard matching method")
 //	private boolean useSBAMMatching = false;
-	private UnionMatchingMethod unionMatchingMethod = UnionMatchingMethod.ParametricNoRegion;
+	private UnionMatchingMethod unionMatchingMethod = UnionMatchingMethod.Parametric;
 
 	@GUIparameter(description = "tick to project mortality based on gender, age, and year specific probabilities")
 	private boolean projectMortality = true;
@@ -377,6 +377,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 			Indicator dcpen = baselineData.getValue(EntityType.Person, 2011, 1, "dcpen", IndicatorValueType.INSTANCE);
 			Dcpst dcpst = baselineData.getValue(EntityType.Person, 2011, 1, "dcpst", Dcpst_ValueType.INSTANCE);
 			Les_c4 les_c4 = baselineData.getValue(EntityType.Person, 2011, 1, "les_c4", Les_c4_ValueType.INSTANCE);
+			System.out.println("Loaded baseline data.");
 		}
 
 		// initialise variables used to match marriage unions
@@ -444,6 +445,17 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		/*
 		Second group of events: to run when shockPropagation = false and outcome of processes is loaded from the baseline
 		 */
+
+			/*
+			Second group, part I: Events to run in the first year
+			 */
+
+		EventGroup reducedFirstYearSchedule = new EventGroup();
+
+			/*
+			Second group, part II: Events to run in each subsequent year
+			 */
+
 		EventGroup reducedYearlySchedule = new EventGroup();
 		reducedYearlySchedule.addEvent(this, Processes.StartYear);
 		reducedYearlySchedule.addEvent(this, Processes.UpdateParameters);
@@ -571,8 +583,13 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 
 		// UPDATE EVENT QUEUE
 		getEngine().getEventQueue().scheduleOnce(initialPeriodShocks, startYear, ordering-1);
-		getEngine().getEventQueue().scheduleOnce(firstYearSched, startYear, ordering);
-		getEngine().getEventQueue().scheduleRepeat(yearlySchedule, startYear+1, ordering, 1.);
+		if (isShockPropagation()) { // If shock propagation is true, run the standard full model, with all processes on.
+			getEngine().getEventQueue().scheduleOnce(firstYearSched, startYear, ordering);
+			getEngine().getEventQueue().scheduleRepeat(yearlySchedule, startYear+1, ordering, 1.);
+		} else { // If shock propagation is false, run a reduced model with fewer processes, which loads remaining outcomes from the baseline data file
+			getEngine().getEventQueue().scheduleRepeat(reducedYearlySchedule, startYear, ordering, 1.);
+		}
+
 
 		//For termination of simulation
 		int orderEarlier = -1;            //Set less than order so that this is called before the yearlySchedule in the endYear.
@@ -766,8 +783,13 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 				/*
 				Introduce shocks to health, employment, and partnership status in the initial period
 				 */
-				if (healthShock) introduceShock(ShockTypes.Health);
-				if (partnershipShock) introduceShock(ShockTypes.Partnership);
+				if (healthShock) {
+					introduceShock(ShockTypes.Health);
+				}
+				if (partnershipShock) {
+					introduceShock(ShockTypes.Partnership);
+				}
+				break;
 			default:
 				break;
 		}
@@ -1052,6 +1074,8 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 				if (age < Parameters.ALIGN_MIN_AGE_ASSUME_DEATH) {
 					// simulate emigration
 
+					Collections.sort(migrantPoolByAlignmentGroup.get(gender, region, age), Person::compareTo); // Ensure that the list of people is sorted the same way
+
 					Iterator<Person> migrantPoolByAlignmentGroupIterator = migrantPoolByAlignmentGroup.get(gender, region, age).iterator();
 					while (targetNumber < simulatedNumber && migrantPoolByAlignmentGroupIterator.hasNext()) {
 
@@ -1074,6 +1098,9 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 						simulatedNumber --;
 					}
 				}
+
+				Collections.sort(personsByAlignmentGroup.get(gender, region, age), Person::compareTo); // Ensure that the list of people is sorted the same way
+
 				Iterator<Person> personIterator = personsByAlignmentGroup.get(gender, region, age).iterator();
 				while (targetNumber < simulatedNumber && personIterator.hasNext()) {
 					// simulate death
@@ -1112,6 +1139,9 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 						migrantPool.addAll(migrantPoolByAlignmentGroup.get(gender, region1, age));
 					}
 				}
+
+				Collections.sort(migrantPool, Person::compareTo); // Ensure that the list of people is sorted the same way
+
 				Iterator<Person> migrantPoolIterator = migrantPool.iterator();
 				while (targetNumber>simulatedNumber && migrantPoolIterator.hasNext()) {
 
@@ -1168,10 +1198,11 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 								}
 						}
 					} else {
-						System.out.println("Null occupancy");
-						removePerson(p);
+						System.out.println("Null occupancy for person ID " + p.getKey().getId() + ". Re-initializing benefit unit fields.");
+						p.getBenefitUnit().initializeFields();
 					}
 				}
+				break;
 			case Partnership:
 				List<Person> personsToLeavePartners = new ArrayList<>();
 				for (BenefitUnit bu : benefitUnits) {
@@ -1183,6 +1214,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 				for (Person p : personsToLeavePartners) {
 					p.leavePartner();
 				}
+				break;
 		}
 	}
 
@@ -1667,15 +1699,22 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 					", number of males to match: " + personsToMatch.get(Gender.Male).get(region).size());
 			double initialMalesSize = personsToMatch.get(Gender.Male).get(region).size();
 			double initialFemalesSize = personsToMatch.get(Gender.Female).get(region).size();
-			Set<Person> unmatchedMales = new LinkedHashSet<Person>();
-			Set<Person> unmatchedFemales = new LinkedHashSet<Person>();
+			List<Person> unmatchedMales = new LinkedList<Person>();
+			List<Person>  unmatchedFemales = new LinkedList<Person>();
 			unmatchedMales.addAll(personsToMatch.get(Gender.Male).get(region));
 			unmatchedFemales.addAll(personsToMatch.get(Gender.Female).get(region));
+
+			// Shuffle collections of individuals according to the random seed in the model. First sort by comparing persons and then shuffle randomly.
+			Collections.sort(unmatchedMales, Person::compareTo);
+			Collections.sort(unmatchedFemales, Person::compareTo);
+			Collections.shuffle(unmatchedMales, SimulationEngine.getRnd());
+			Collections.shuffle(unmatchedFemales, SimulationEngine.getRnd());
+
 			ageDiffBound = Parameters.AGE_DIFFERENCE_INITIAL_BOUND;
 			potentialHourlyEarningsDiffBound = Parameters.POTENTIAL_EARNINGS_DIFFERENCE_INITIAL_BOUND;
 
 			// System.out.println("There are " + unmatchedMales.size() + " unmatched males and " + unmatchedFemales.size() + " unmatched females at the start");
-			Pair<Set<Person>, Set<Person>> unmatched = new Pair<>(unmatchedMales, unmatchedFemales);
+			Pair<List<Person>, List<Person>> unmatched = new Pair<>(unmatchedMales, unmatchedFemales);
 			do {
 
 				// unmatched = IterativeSimpleMatching.getInstance().matching(
@@ -1804,8 +1843,8 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 
 		double initialMalesSize = 0.;
 		double initialFemalesSize = 0.;
-		Set<Person> unmatchedMales = new LinkedHashSet<Person>();
-		Set<Person> unmatchedFemales = new LinkedHashSet<Person>();
+		List<Person> unmatchedMales = new LinkedList<Person>();
+		List<Person> unmatchedFemales = new LinkedList<Person>();
 
 		Set<Person> matches = new LinkedHashSet<Person>();
 
@@ -1819,7 +1858,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 
 //		System.out.println("There are " + unmatchedMales.size() + " unmatched males and " + unmatchedFemales.size() + " unmatched females at the start");
 
-		Pair<Set<Person>, Set<Person>> unmatched = new Pair<>(unmatchedMales, unmatchedFemales);
+		Pair<List<Person>, List<Person>> unmatched = new Pair<>(unmatchedMales, unmatchedFemales);
 
 		do {
 //				unmatched = IterativeSimpleMatching.getInstance().matching(

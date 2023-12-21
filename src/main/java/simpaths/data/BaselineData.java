@@ -70,7 +70,6 @@ public class BaselineData {
                 map = new MultiKeyMap();
                 maps.put(entityType, map);
             }
-            int count = 0;
             // Read each row of the file and store the data in the MultiKeyMap
             for (CSVRecord record : csvParser) {
                 int year = (int) Double.parseDouble(record.get(timeIndex));
@@ -85,10 +84,6 @@ public class BaselineData {
 
                     MultiKey key = new MultiKey(year, entityId, variableName);
                     map.put(key, value);
-                }
-                count++;
-                if (count >= 10000) {
-                    break;
                 }
             }
         } catch (IOException e) {

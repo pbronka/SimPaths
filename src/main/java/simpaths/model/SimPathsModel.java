@@ -38,12 +38,7 @@ import simpaths.experiment.SimPathsCollector;
 import simpaths.model.decisions.DecisionParams;
 import simpaths.model.decisions.ManagerPopulateGrids;
 import simpaths.model.enums.*;
-import simpaths.model.enums.baselineDataEnums.EntityType;
-import simpaths.model.enums.baselineDataEnums.IndicatorValueType;
-import simpaths.model.enums.baselineDataEnums.IntValueType;
-import simpaths.model.enums.baselineDataEnums.ShockTypes;
-import simpaths.model.enums.baselineDataEnums.Dcpst_ValueType;
-import simpaths.model.enums.baselineDataEnums.Les_c4_ValueType;
+import simpaths.model.enums.baselineDataEnums.*;
 import simpaths.model.taxes.DonorTaxUnit;
 import simpaths.model.taxes.DonorTaxUnitPolicy;
 
@@ -367,7 +362,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		if (!shockPropagation) {
 			baselineData = new BaselineData(); // Instantiate BaselineData object, loading baseline data for the complexity project
 			List<String> includedColumns = new ArrayList<>();
-			includedColumns.addAll(Arrays.asList("dag", "ydses_c5", "dhe", "region", "deh_c3", "les_c4", "dhhtp_c4", "dlltsd", "weight")); // List of variables required by health regressions
+			includedColumns.addAll(Arrays.asList("dag", "ydses_c5", "dhe", "region", "deh_c3", "les_c4", "dhhtp_c4", "dlltsd", "weight", "idBenefitUnit")); // List of variables required by health regressions
 			baselineData.loadBaselineData(Parameters.BASELINE_DATA_DIRECTORY + "Person.csv", includedColumns, "id_Person", EntityType.Person);
 			baselineData.loadBaselineData(Parameters.BASELINE_DATA_DIRECTORY + "BenefitUnit.csv", includedColumns, "id_BenefitUnit", EntityType.BenefitUnit);
 
@@ -377,6 +372,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 			Indicator dcpen = baselineData.getValue(EntityType.Person, 2011, 1, "dcpen", IndicatorValueType.INSTANCE);
 			Dcpst dcpst = baselineData.getValue(EntityType.Person, 2011, 1, "dcpst", Dcpst_ValueType.INSTANCE);
 			Les_c4 les_c4 = baselineData.getValue(EntityType.Person, 2011, 1, "les_c4", Les_c4_ValueType.INSTANCE);
+			Long idBenefitUnit =  baselineData.getValue(EntityType.Person, 2011, 1, "idBenefitUnit", LongValueType.INSTANCE);
 			System.out.println("Loaded baseline data.");
 		}
 
@@ -1164,9 +1160,8 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		}
 	}
 
-	/**
-	 Method to introduce shocks in the initial population.
-	 Shocks are applied for the "Complexity" project.
+	/*
+	Method to introduce shocks in the initial population
 	 */
 	private void introduceShock(ShockTypes shockType) {
 		switch (shockType) {
@@ -1175,27 +1170,44 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 					if (p.getBenefitUnit().getOccupancy() != null) {
 						switch (p.getBenefitUnit().getOccupancy()) {
 							case Couple:
-								if (p.getPartner() != null && p.getHourlyWageRate() < p.getPartner().getHourlyWageRate()) {
-									if (p.getPartner().getDhe().getValue() > 1.) {
-										p.getPartner().setDhe(Dhe.Poor);
-										p.getPartner().setDhe_lag1(Dhe.Poor);
-									}
-								} else {
-									if (p.getDhe().getValue() > 1.) {
-										p.setDhe(Dhe.Poor); // If p has potential earnings higher than partner, set health to zero
-										p.setDhe_lag1(Dhe.Poor);
+								if (p.getPartner() != null) {
+									if (p.getHourlyWageRate() < p.getPartner().getHourlyWageRate()) { // Partner's earnings are higher => partner is head of the BU
+										if (p.getPartner().getDhe().getValue() > 1.) {
+											p.getPartner().setDhe(Dhe.Poor);
+											p.getPartner().setDhe_lag1(Dhe.Poor);
+											p.getPartner().setShockedPerson(Indicator.True);
+										}
+									} else if (p.getHourlyWageRate() > p.getPartner().getHourlyWageRate()) { // Partner's earnings are lower => person is head of the BU
+										if (p.getDhe().getValue() > 1.) {
+											p.setDhe(Dhe.Poor); // If p has potential earnings higher than partner, set health to zero
+											p.setDhe_lag1(Dhe.Poor);
+											p.setShockedPerson(Indicator.True);
+										}
+									} else { // Else, earnings must be the same => male is the BU head
+										if (Gender.Male.equals(p.getDgn())) {
+											if (p.getDhe().getValue() > 1.) {
+												p.setDhe(Dhe.Poor); // If p has potential earnings higher than partner, set health to zero
+												p.setDhe_lag1(Dhe.Poor);
+												p.setShockedPerson(Indicator.True);
+											}
+										} else {
+											if (p.getPartner().getDhe().getValue() > 1.) {
+												p.getPartner().setDhe(Dhe.Poor);
+												p.getPartner().setDhe_lag1(Dhe.Poor);
+												p.getPartner().setShockedPerson(Indicator.True);
+											}
+										}
 									}
 								}
-							case Single_Male:
-								if (p.getDhe().getValue() > 1.) {
-									p.setDhe(Dhe.Poor);
-									p.setDhe_lag1(Dhe.Poor);
-								}
+								break;
+							case Single_Male: // Note that since there is no break statement this goes into the Single_Female case which has the same behaviour.
 							case Single_Female:
 								if (p.getDhe().getValue() > 1.) {
 									p.setDhe(Dhe.Poor);
 									p.setDhe_lag1(Dhe.Poor);
+									p.setShockedPerson(Indicator.True);
 								}
+								break;
 						}
 					} else {
 						System.out.println("Null occupancy for person ID " + p.getKey().getId() + ". Re-initializing benefit unit fields.");

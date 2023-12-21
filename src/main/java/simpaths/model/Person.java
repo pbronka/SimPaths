@@ -428,6 +428,8 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
     public static double inverseMillsRatioMinMale = Double.MAX_VALUE;
     public static double inverseMillsRatioMaxFemale = Double.MIN_VALUE;
     public static double inverseMillsRatioMinFemale = Double.MAX_VALUE;
+    private Indicator shockedPerson = Indicator.False;
+    private Indicator matchedWithBaseline = Indicator.False;
 
 
     // ---------------------------------------------------------------------
@@ -880,6 +882,7 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
         boolean flagDies = considerMortality();
         dag_sq = dag*dag;
         benefitUnit.clearStates(); // states object used to manage optimised decisions
+        matchedWithBaseline = Indicator.False;
         if (flagDies) {
 
             death();
@@ -4062,6 +4065,14 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
 
     public double getDisposableIncomeMonthly() { return benefitUnit.getDisposableIncomeMonthly();}
 
+    public Indicator getShockedPerson() {
+        return shockedPerson;
+    }
+
+    public void setShockedPerson(Indicator shockedPerson) {
+        this.shockedPerson = shockedPerson;
+    }
+
     public double getWageOffer() {
         //TODO: WAGE OFFER NOT CURRENTLY WORKING
         return 1.0;
@@ -4106,33 +4117,62 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
      * This method loads values of independent variables used in health regressions from baseline data, except for lagged health and disability status
      */
     protected void setHealthRegressionVariablesFromBaseline() {
+
         if (model.getYear() == model.getStartYear()) { // In the first year, use contemporaneous value for lags
-            if (model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear(), this.benefitUnit.getKey().getId(), "weight", DoubleValueType.INSTANCE) != null) {
-                if (model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "weight", DoubleValueType.INSTANCE) != null) {
 
-                    dag = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "dag", IntValueType.INSTANCE);
-                    dag_sq = dag * dag;
-                    this.benefitUnit.setYdses_c5_lag1(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear(), this.benefitUnit.getKey().getId(), "ydses_c5", Ydses_c5_ValueType.INSTANCE));
-                    this.benefitUnit.setRegion(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear(), this.benefitUnit.getKey().getId(), "region", Region_ValueType.INSTANCE));
-                    this.deh_c3 = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "deh_c3", Education_ValueType.INSTANCE);
-                    this.les_c4_lag1 = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "les_c4", Les_c4_ValueType.INSTANCE);
-                    this.benefitUnit.setDhhtp_c4_lag1(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear(), this.benefitUnit.getKey().getId(), "dhhtp_c4", Dhhtp_c4_ValueType.INSTANCE));
-                } else System.out.println("person unit not found. ID: " + this.getKey().getId());
-            } else System.out.println("benefit unit not found. ID: " + this.benefitUnit.getKey().getId());
-        }
-        else {
-            if (model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear()-1, this.benefitUnit.getKey().getId(), "weight", DoubleValueType.INSTANCE) != null && model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear(), this.benefitUnit.getKey().getId(), "weight", DoubleValueType.INSTANCE) != null) {
-                if (model.getBaselineData().getValue(EntityType.Person, model.getYear()-1, this.getKey().getId(), "weight", DoubleValueType.INSTANCE) != null && model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "weight", DoubleValueType.INSTANCE) != null) {
+            // Identify a matching person in the baseline data, based on person ID.
+            if (model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "idBenefitUnit", LongValueType.INSTANCE) != null) {
+                matchedWithBaseline = Indicator.True;
+            }
 
-                    dag = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "dag", IntValueType.INSTANCE);
-                    dag_sq = dag * dag;
-                    this.benefitUnit.setYdses_c5_lag1(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear()-1, this.benefitUnit.getKey().getId(), "ydses_c5", Ydses_c5_ValueType.INSTANCE));
-                    this.benefitUnit.setRegion(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear(), this.benefitUnit.getKey().getId(), "region", Region_ValueType.INSTANCE));
-                    this.deh_c3 = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "deh_c3", Education_ValueType.INSTANCE);
-                    this.les_c4_lag1 = model.getBaselineData().getValue(EntityType.Person, model.getYear()-1, this.getKey().getId(), "les_c4", Les_c4_ValueType.INSTANCE);
-                    this.benefitUnit.setDhhtp_c4_lag1(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear()-1, this.benefitUnit.getKey().getId(), "dhhtp_c4", Dhhtp_c4_ValueType.INSTANCE));
-                } else System.out.println("person unit not found. ID: " + this.getKey().getId());
-            } else System.out.println("benefit unit not found. ID: " + this.benefitUnit.getKey().getId());
+            if (Indicator.True == matchedWithBaseline) {
+
+                // Obtain ID of a benefit unit this person belongs to in the baseline
+                long benefitUnitID = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "idBenefitUnit", LongValueType.INSTANCE);
+
+                // Load benefit unit level variables required in the health process
+                this.benefitUnit.setYdses_c5_lag1(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear(), benefitUnitID, "ydses_c5", Ydses_c5_ValueType.INSTANCE));
+                this.benefitUnit.setRegion(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear(), benefitUnitID, "region", Region_ValueType.INSTANCE));
+                this.benefitUnit.setDhhtp_c4_lag1(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear(), benefitUnitID, "dhhtp_c4", Dhhtp_c4_ValueType.INSTANCE));
+
+                // Load individual level variables required in the health process
+                dag = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "dag", IntValueType.INSTANCE);
+                dag_sq = dag * dag;
+                this.deh_c3 = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "deh_c3", Education_ValueType.INSTANCE);
+                this.les_c4_lag1 = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "les_c4", Les_c4_ValueType.INSTANCE);
+
+            } else {
+                System.out.println("Simulated person NOT FOUND in the baseline. ID: " + this.getKey().getId());
+            }
+
+        } else { // In subsequent years, use contemporaneous and lagged values, as required.
+
+            // Identify a matching person in the baseline data, based on person ID.
+            // A match requires that the person is found in the current year, and in the previous year.
+            if (model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "idBenefitUnit", LongValueType.INSTANCE) != null &&
+                    model.getBaselineData().getValue(EntityType.Person, model.getYear()-1, this.getKey().getId(), "idBenefitUnit", LongValueType.INSTANCE) != null) {
+                matchedWithBaseline = Indicator.True;
+            }
+
+            if (Indicator.True == matchedWithBaseline) {
+
+                // Obtain ID of a benefit unit this person belonged to in the baseline in the previous year
+                long benefitUnitID = model.getBaselineData().getValue(EntityType.Person, model.getYear()-1, this.getKey().getId(), "idBenefitUnit", LongValueType.INSTANCE);
+
+                // Load benefit unit level variables required in the health process
+                this.benefitUnit.setYdses_c5_lag1(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear()-1, benefitUnitID, "ydses_c5", Ydses_c5_ValueType.INSTANCE));
+                this.benefitUnit.setRegion(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear()-1, benefitUnitID, "region", Region_ValueType.INSTANCE));
+                this.benefitUnit.setDhhtp_c4_lag1(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear()-1, benefitUnitID, "dhhtp_c4", Dhhtp_c4_ValueType.INSTANCE));
+
+                // Load individual level variables required in the health process
+                dag = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "dag", IntValueType.INSTANCE);
+                dag_sq = dag * dag;
+                this.deh_c3 = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "deh_c3", Education_ValueType.INSTANCE);
+                this.les_c4_lag1 = model.getBaselineData().getValue(EntityType.Person, model.getYear()-1, this.getKey().getId(), "les_c4", Les_c4_ValueType.INSTANCE);
+
+            } else {
+                System.out.println("Simulated person NOT FOUND in the baseline. ID: " + this.getKey().getId());
+            }
         }
     }
 

@@ -905,7 +905,7 @@ public class BenefitUnit implements EventListener, IDoubleSource, Weight, Compar
 					dhhtp_c4 = Dhhtp_c4.SingleNoChildren; //Otherwise, set dhhtp_c4 to "Single without children"
 				}
 			}
-		} else if (male == null && female == null) {
+		} else if (male == null && female == null && model.isShockPropagation()) {
 			throw new IllegalArgumentException("No responsible adult in benefit unit at composition update.");
 		}
 		if (dhhtp_c4_lag1 == null) {
@@ -2837,8 +2837,7 @@ public class BenefitUnit implements EventListener, IDoubleSource, Weight, Compar
 			}
 		}
 		if (female == null && male == null) {
-
-			throw new IllegalArgumentException("Error - update occupancy for benefit unit with no adult");
+			if (model.isShockPropagation()) throw new IllegalArgumentException("Error - update occupancy for benefit unit with no adult");
 		} else if (female!=null && male!=null) {
 
 			occupancy = Occupancy.Couple;

@@ -77,9 +77,10 @@ public class BaselineData {
 
                 // Iterate over the remaining columns and store the data in the MultiKeyMap
                 for (String variableName : csvParser.getHeaderMap().keySet()) {
-                    if (variableName.equals("time") || variableName.equals(idColumnName) || !includedColumnSet.contains(variableName)) {
+                    if (variableName.equals("time") || !includedColumnSet.contains(variableName)) {
                         continue;
                     }
+
                     String value = record.get(variableName); // All values are stored as string, and parsed when they are accessed. This should be computationally cheaper or comparable to storing all values as objects and casting when they need to be used.
 
                     MultiKey key = new MultiKey(year, entityId, variableName);

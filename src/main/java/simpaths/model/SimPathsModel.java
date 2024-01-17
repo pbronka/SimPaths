@@ -142,15 +142,15 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 	private boolean projectMortality = true;
 
 	//	@GUIparameter(description = "If checked, will align fertility")
-	private boolean alignFertility = true;
+	private boolean alignFertility = false;
 
 	private boolean alignEducation = false; //Set to true to align level of education
 
 	private boolean alignInSchool = false; //Set to true to align share of students among 16-29 age group
 
-	private boolean alignCohabitation = true; //Set to true to align share of couples (cohabiting individuals)
+	private boolean alignCohabitation = false; //Set to true to align share of couples (cohabiting individuals)
 
-	private boolean alignEmployment = true; //Set to true to align employment share
+	private boolean alignEmployment = false; //Set to true to align employment share
 
     public boolean addRegressionStochasticComponent = true; //If set to true, and regression contains ResStanDev variable, will evaluate the regression score including stochastic part, and omits the stochastic component otherwise.
 
@@ -362,17 +362,20 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		if (!shockPropagation) {
 			baselineData = new BaselineData(); // Instantiate BaselineData object, loading baseline data for the complexity project
 			List<String> includedColumns = new ArrayList<>();
-			includedColumns.addAll(Arrays.asList("dag", "ydses_c5", "dhe", "region", "deh_c3", "les_c4", "dhhtp_c4", "dlltsd", "weight", "idBenefitUnit")); // List of variables required by health regressions
+			includedColumns.addAll(Arrays.asList("id_Person", "idBenefitUnit", "dag", "ydses_c5", "dhe", "region", "deh_c3", "les_c4", "dhhtp_c4", "dlltsd", "weight", "n_children_allAges", "n_children_02")); // List of variables required by health regressions
 			baselineData.loadBaselineData(Parameters.BASELINE_DATA_DIRECTORY + "Person.csv", includedColumns, "id_Person", EntityType.Person);
 			baselineData.loadBaselineData(Parameters.BASELINE_DATA_DIRECTORY + "BenefitUnit.csv", includedColumns, "id_BenefitUnit", EntityType.BenefitUnit);
 
 			// TODO: Remove later, this is for testing retrieval
 			// Retrival examples below
 			int dage = baselineData.getValue(EntityType.Person, 2011, 1, "dag", IntValueType.INSTANCE);
+			Dhe dhe = baselineData.getValue(EntityType.Person, 2011, 1, "dhe", Dhe_ValueType.INSTANCE);
 			Indicator dcpen = baselineData.getValue(EntityType.Person, 2011, 1, "dcpen", IndicatorValueType.INSTANCE);
 			Dcpst dcpst = baselineData.getValue(EntityType.Person, 2011, 1, "dcpst", Dcpst_ValueType.INSTANCE);
 			Les_c4 les_c4 = baselineData.getValue(EntityType.Person, 2011, 1, "les_c4", Les_c4_ValueType.INSTANCE);
-			Long idBenefitUnit =  baselineData.getValue(EntityType.Person, 2011, 1, "idBenefitUnit", LongValueType.INSTANCE);
+			Long idPerson =  baselineData.getValue(EntityType.Person, 2011, 1, "id_Person", LongValueType.INSTANCE);
+			Long benefitUnitIDinBD = baselineData.getValue(EntityType.Person, 2011, 1, "idBenefitUnit", LongValueType.INSTANCE);
+			Ydses_c5 ydses = baselineData.getValue(EntityType.BenefitUnit, 2011, benefitUnitIDinBD, "ydses_c5", Ydses_c5_ValueType.INSTANCE);
 			System.out.println("Loaded baseline data.");
 		}
 
@@ -461,6 +464,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		reducedYearlySchedule.addCollectionEvent(benefitUnits, BenefitUnit.Processes.Update);
 
 		if (healthShock) reducedYearlySchedule.addCollectionEvent(persons, Person.Processes.Health);
+		if (partnershipShock) reducedYearlySchedule.addCollectionEvent(persons, Person.Processes.ConsiderCohabitation);
 
 		reducedYearlySchedule.addEvent(this, Processes.CheckForEmptyBenefitUnits);
 		reducedYearlySchedule.addEvent(this, Processes.EndYear);
@@ -2604,9 +2608,6 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 	//----------------------------------------------------------
 
 	/**
-	 * Note that this method makes minimal assumptions on the input database data.  It does NOT assume the data
-	 * is from EUROMOD data files.  This makes the simulation very flexible with regards to input database data,
-	 * but it does mean that the method is not optimised for speed.
 	 *
 	 */
 	private void createInitialPopulationDataStructures() {

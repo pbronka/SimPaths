@@ -246,13 +246,11 @@ public class BenefitUnit implements EventListener, IDoubleSource, Weight, Compar
 	@Column(name="social_care_provision")
 	private Integer socialCareProvision;
 
-	@Transient
 	private Integer n_children_allAges = 0; //Number of children of all ages in the household
 
 	@Transient
 	private Integer n_children_allAges_lag1 = 0; //Lag(1) of the number of children of all ages in the household
 
-	@Transient
 	private Integer n_children_02 = 0; //Number of children aged 0-2 in the household
 
 	@Transient

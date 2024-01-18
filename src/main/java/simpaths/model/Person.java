@@ -4110,47 +4110,51 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
      * This method loads values of independent variables used in the consider cohabitation regressions from baseline data
      */
     protected void setPartnershipRegressionVariablesFromBaseline() {
+        boolean isFirstYear = model.getYear() == model.getStartYear();
+        int currentYear = model.getYear();
+        int baselineDataYear = isFirstYear ? currentYear : currentYear - 1;
 
-        if (model.getYear() == model.getStartYear()) { // In the first year, use contemporaneous value for lags
-            // Identify a matching person in the baseline data, based on person ID.
-            if (model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "id_Person", LongValueType.INSTANCE) != null) {
-                matchedWithBaseline = Indicator.True;
-            }
+        if ((isFirstYear && matchPersonInBaseline(currentYear)) || (!isFirstYear && matchPersonInBaseline(currentYear) && matchPersonInBaseline(currentYear - 1))) {
+            matchedWithBaseline = Indicator.True;
 
-            if (Indicator.True == matchedWithBaseline) {
+            long personID = this.getKey().getId();
+            long benefitUnitIDinBD = getBenefitUnitIDFromBaseline(personID, baselineDataYear);
 
-                // Record what was the ID of the benefit unit in which the person resided in the baseline data
-                long benefitUnitIDinBD = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "idBenefitUnit", LongValueType.INSTANCE);
+            // Set individual-level variables
+            dag = getPersonVariable(currentYear, personID, "dag", IntValueType.INSTANCE);
+            dag_sq = dag * dag;
+            dhe_lag1 = getPersonVariable(baselineDataYear, personID, "dhe", Dhe_ValueType.INSTANCE);
+            deh_c3 = getPersonVariable(currentYear, personID, "deh_c3", Education_ValueType.INSTANCE);
+            les_c4_lag1 = getPersonVariable(baselineDataYear, personID, "les_c4", Les_c4_ValueType.INSTANCE);
+            ypnbihs_dv_lag1 = getPersonVariable(baselineDataYear, personID, "ypnbihs_dv", DoubleValueType.INSTANCE);
 
-                // Set all individual level variables required by the partnership regression
-                dag = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "dag", IntValueType.INSTANCE);
-                dag_sq = dag * dag;
-                dhe_lag1 = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "dhe", Dhe_ValueType.INSTANCE);
-                this.deh_c3 = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "deh_c3", Education_ValueType.INSTANCE);
-                this.les_c4_lag1 = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "les_c4", Les_c4_ValueType.INSTANCE);
+            // Set benefit unit level variables
+            ydses_c5_lag1Local = getBenefitUnitVariable(baselineDataYear, benefitUnitIDinBD, "ydses_c5", Ydses_c5_ValueType.INSTANCE);
+            n_children_allAges_lag1Local = getBenefitUnitVariable(baselineDataYear, benefitUnitIDinBD, "n_children_allAges", IntValueType.INSTANCE);
+            n_children_02_lag1Local = getBenefitUnitVariable(baselineDataYear, benefitUnitIDinBD, "n_children_02", IntValueType.INSTANCE);
+            regionLocal = getBenefitUnitVariable(baselineDataYear, benefitUnitIDinBD, "region", Region_ValueType.INSTANCE);
 
-                // Recover benefit unit value based on the ID in the baseline data and use it to set "local" version of that variable in the simulation
-                ydses_c5_lag1Local = model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear(), benefitUnitIDinBD, "ydses_c5", Ydses_c5_ValueType.INSTANCE);
-                n_children_allAges_lag1Local = model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear(), benefitUnitIDinBD, "n_children_allAges", IntValueType.INSTANCE);
-                n_children_02_lag1Local = model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear(), benefitUnitIDinBD, "n_children_02", IntValueType.INSTANCE);
-                regionLocal = model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear(), benefitUnitIDinBD, "region", Region_ValueType.INSTANCE);
-                // Set all benefit unit level variables required by the partnership regression at the individual level. Use "local" versions of these variables.
-
-            }
-        } else { // In subsequent years, use contemporaneous and lagged values, as required.
-
-            // Identify a matching person in the baseline data, based on person ID.
-            // A match requires that the person is found in the current year, and in the previous year.
-            if (model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "id_Person", LongValueType.INSTANCE) != null &&
-                    model.getBaselineData().getValue(EntityType.Person, model.getYear()-1, this.getKey().getId(), "id_Person", LongValueType.INSTANCE) != null) {
-                matchedWithBaseline = Indicator.True;
-            }
-
-            if (Indicator.True == matchedWithBaseline) {
-
-            }
+            // Note: partner's variables are not set from the baseline because they directly depend on the partnership process.
         }
     }
+
+    private boolean matchPersonInBaseline(int year) {
+        long personID = this.getKey().getId();
+        return model.getBaselineData().getValue(EntityType.Person, year, personID, "id_Person", LongValueType.INSTANCE) != null;
+    }
+
+    private long getBenefitUnitIDFromBaseline(long personID, int baselineYear) {
+        return model.getBaselineData().getValue(EntityType.Person, baselineYear, personID, "idBenefitUnit", LongValueType.INSTANCE);
+    }
+
+    private <T> T getPersonVariable(int year, long personID, String variableName, ValueType<T> valueType) {
+        return model.getBaselineData().getValue(EntityType.Person, year, personID, variableName, valueType);
+    }
+
+    private <T> T getBenefitUnitVariable(int year, long benefitUnitID, String variableName, ValueType<T> valueType) {
+        return model.getBaselineData().getValue(EntityType.BenefitUnit, year, benefitUnitID, variableName, valueType);
+    }
+
 
     /**
      * This method loads values of independent variables used in health regressions from baseline data, except for lagged health and disability status

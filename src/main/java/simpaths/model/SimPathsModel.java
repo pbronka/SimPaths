@@ -450,6 +450,12 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 			 */
 
 		EventGroup reducedFirstYearSchedule = new EventGroup();
+		reducedFirstYearSchedule.addEvent(this, Processes.StartYear);
+		reducedFirstYearSchedule.addEvent(this, Processes.UpdateParameters);
+		reducedFirstYearSchedule.addEvent(this, Processes.CheckForEmptyBenefitUnits);
+		//reducedFirstYearSchedule.addEvent(this, Processes.PopulationAlignment);
+		reducedFirstYearSchedule.addEvent(this, Processes.EndYear);
+		reducedFirstYearSchedule.addEvent(this, Processes.UpdateYear);
 
 			/*
 			Second group, part II: Events to run in each subsequent year
@@ -460,7 +466,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		reducedYearlySchedule.addEvent(this, Processes.UpdateParameters);
 		reducedYearlySchedule.addCollectionEvent(persons, Person.Processes.Ageing, false);
 		reducedYearlySchedule.addEvent(this, Processes.CheckForEmptyBenefitUnits);
-		reducedYearlySchedule.addEvent(this, Processes.PopulationAlignment);
+		//reducedYearlySchedule.addEvent(this, Processes.PopulationAlignment);
 		reducedYearlySchedule.addCollectionEvent(benefitUnits, BenefitUnit.Processes.Update);
 
 		if (healthShock) reducedYearlySchedule.addCollectionEvent(persons, Person.Processes.Health);
@@ -487,7 +493,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		addEventToAllYears(Processes.CheckForEmptyBenefitUnits);
 
 		// B: Population Alignment - adjust population to projections by Gender and Age, and creates new population for minimum age
-		addEventToAllYears(Processes.PopulationAlignment);
+//		addEventToAllYears(Processes.PopulationAlignment);
 
 		yearlySchedule.addCollectionEvent(benefitUnits, BenefitUnit.Processes.Update);
 		//yearlySchedule.addEvent(this, Processes.CheckForEmptyHouseholds);
@@ -587,7 +593,8 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 			getEngine().getEventQueue().scheduleOnce(firstYearSched, startYear, ordering);
 			getEngine().getEventQueue().scheduleRepeat(yearlySchedule, startYear+1, ordering, 1.);
 		} else { // If shock propagation is false, run a reduced model with fewer processes, which loads remaining outcomes from the baseline data file
-			getEngine().getEventQueue().scheduleRepeat(reducedYearlySchedule, startYear, ordering, 1.);
+			getEngine().getEventQueue().scheduleOnce(reducedFirstYearSchedule, startYear, ordering);
+			getEngine().getEventQueue().scheduleRepeat(reducedYearlySchedule, startYear+1, ordering, 1.);
 		}
 
 
@@ -1164,6 +1171,45 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		}
 	}
 
+	public void applyPartnerLeavingShock(Gender gender, Cohort cohort) {
+		List<Person> personsToLeavePartners = new ArrayList<>();
+		for (BenefitUnit bu : benefitUnits) {
+			if (bu.getOccupancy() != null && bu.getOccupancy().equals(Occupancy.Couple)) {
+				Person personToLeave = null;
+
+				switch (gender) {
+					case Male:
+						if (bu.getMale().getDag() >= cohort.getMinAge() && bu.getMale().getDag() <= cohort.getMaxAge()) {
+							/*
+							Note: it is always the woman leaving the partnership. If the cohort we consider is of men, they are left by their partners.
+							If the cohort is women, then they leave their partners.
+							This is to stay consistent with how partnership dissolution is modelled in the "full" model, where it is always the woman leaving.
+							 */
+							personToLeave = bu.getMale().getPartner();
+						}
+						break;
+					case Female:
+						if (bu.getFemale().getDag() >= cohort.getMinAge() && bu.getFemale().getDag() <= cohort.getMaxAge()) {
+							personToLeave = bu.getFemale();
+						}
+						break;
+				}
+
+				if (personToLeave != null) {
+					personsToLeavePartners.add(personToLeave);
+				}
+
+			}
+		}
+
+		for (Person personToLeave : personsToLeavePartners) {
+			personToLeave.setShockedPerson(Indicator.True);
+			personToLeave.getPartner().setShockedPerson(Indicator.True);
+			personToLeave.leavePartner();
+		}
+	}
+
+
 	/*
 	Method to introduce shocks in the initial population
 	 */
@@ -1224,19 +1270,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 				for (Person p : persons) {
 					p.setShockedPerson(Indicator.False);
 				}
-				List<Person> personsToLeavePartners = new ArrayList<>();
-				for (BenefitUnit bu : benefitUnits) {
-					if (bu.getOccupancy() != null && bu.getOccupancy().equals(Occupancy.Couple)) {
-						// To remain consistent with model assumptions in the considerCohabitation part, female partner leaves.
-						personsToLeavePartners.add(bu.getFemale());
-						bu.getFemale().setShockedPerson(Indicator.True);
-						bu.getFemale().getPartner().setShockedPerson(Indicator.True);
-					}
-				}
-				for (Person p : personsToLeavePartners) {
-					p.leavePartner();
-					p.setShockedPerson(Indicator.True);
-				}
+				applyPartnerLeavingShock(Gender.Male, Cohort.THIRTY);
 				break;
 		}
 	}

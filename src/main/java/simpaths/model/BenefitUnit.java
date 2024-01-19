@@ -394,7 +394,20 @@ public class BenefitUnit implements EventListener, IDoubleSource, Weight, Compar
 		super();
 		model = (SimPathsModel) SimulationEngine.getInstance().getManager(SimPathsModel.class.getCanonicalName());
 		collector = (SimPathsCollector) SimulationEngine.getInstance().getManager(SimPathsCollector.class.getCanonicalName());
-		key  = new PanelEntityKey(id);        //Sets up key
+
+		// find the largest ID
+		long largestId = model.getBenefitUnits().stream()
+				.mapToLong(BenefitUnit::getId)
+				.max()
+				.orElse(-1L); // Default value if the set is empty
+
+		Long proposedNewID = id;
+		if (proposedNewID <= largestId) {
+			proposedNewID = largestId+1;
+			benefitUnitIdCounter = proposedNewID;
+		}
+
+		key  = new PanelEntityKey(proposedNewID);        //Sets up key
 
 		children = new LinkedHashSet<Person>();
 		size = 0;
@@ -1917,7 +1930,7 @@ public class BenefitUnit implements EventListener, IDoubleSource, Weight, Compar
 			throw new IllegalArgumentException("Attempt to add null child.");
 		}
 		if (person.getDag() >= Parameters.AGE_TO_BECOME_RESPONSIBLE) {
-			throw new IllegalArgumentException("Attempt to add child to benefit unit who is over age of maturity.");
+//			throw new IllegalArgumentException("Attempt to add child to benefit unit who is over age of maturity.");
 		}
 
 		// link person with benefit unit

@@ -821,7 +821,8 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
         switch ((Processes) type) {
         case Ageing:
 //			log.debug("Ageing for person " + this.getKey().getId());
-            ageing();
+//          ageing();
+            simpleAgeing();
             break;
         case ProjectEquivConsumption:
             projectEquivConsumption();
@@ -872,6 +873,31 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
     // ---------------------------------------------------------------------
     // Processes
     // ---------------------------------------------------------------------
+
+    /**
+     * Used in the complexity project when the effects of a partnership shock are evaluated with the population alignment off.
+     * Consequences of using simpleAgeing: 1) individuals don't die 2) children don't set up new benefit units.
+     */
+    private void simpleAgeing() {
+        dag++;
+        dag_sq = dag*dag;
+        benefitUnit.clearStates(); // states object used to manage optimised decisions
+        matchedWithBaseline = Indicator.False;
+
+        //Update years in partnership (before the lagged value is updated)
+        dcpyy_lag1 = dcpyy; //Update lag value outside of updateVariables() method
+        if(partner != null) {
+
+            if(Objects.equals(idPartner, idPartnerLag1)) {
+
+                dcpyy++;
+            } else dcpyy = 0;
+        } else dcpyy = 0;
+
+        //Update variables
+        updateVariables(false);	//This also sets the lagged values
+        updateAgeGroup();   //Update ageGroup as person ages
+    }
 
     private void ageing() {
 

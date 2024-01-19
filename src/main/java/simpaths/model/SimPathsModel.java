@@ -78,7 +78,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 	private Integer startYear = 2011;
 
 	@GUIparameter(description = "Simulation ends at year [valid range 2011-2050]")
-	private Integer endYear = 2020;
+	private Integer endYear = 2035;
 
 	@GUIparameter(description = "Maximum simulated age")
 	private Integer maxAge = 130;
@@ -470,7 +470,11 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		reducedYearlySchedule.addCollectionEvent(benefitUnits, BenefitUnit.Processes.Update);
 
 		if (healthShock) reducedYearlySchedule.addCollectionEvent(persons, Person.Processes.Health);
-		if (partnershipShock) reducedYearlySchedule.addCollectionEvent(persons, Person.Processes.ConsiderCohabitation);
+		if (partnershipShock) {
+			reducedYearlySchedule.addCollectionEvent(persons, Person.Processes.ConsiderCohabitation);
+			reducedYearlySchedule.addEvent(this, Processes.UnionMatching);
+			reducedYearlySchedule.addCollectionEvent(benefitUnits, BenefitUnit.Processes.UpdateOccupancy);
+		}
 
 		reducedYearlySchedule.addEvent(this, Processes.CheckForEmptyBenefitUnits);
 		reducedYearlySchedule.addEvent(this, Processes.EndYear);

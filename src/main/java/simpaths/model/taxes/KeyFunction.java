@@ -53,7 +53,7 @@ public class KeyFunction {
             throw new RuntimeException("Key function supplied odd number of children under 5");
         if (numberChildren5To9<0 || numberChildren5To9>8)
             throw new RuntimeException("Key function supplied odd number of children aged between 5 and 9");
-        if (numberChildren10To17<0 || numberChildren10To17>7)
+        if (numberChildren10To17<0 || numberChildren10To17>10)
             throw new RuntimeException("Key function supplied odd number of children aged between 10 and 17");
         if (hoursWorkedPerWeekMan<0.0 || hoursWorkedPerWeekMan>200.0)
             throw new RuntimeException("Key function supplied odd hours worked by man");

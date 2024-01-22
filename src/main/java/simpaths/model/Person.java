@@ -3335,7 +3335,7 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
     }
 
     public Region getRegion() {
-        if (benefitUnit != null) {
+        if (model.isShockPropagation() && benefitUnit != null) {
             return benefitUnit.getRegion();
         } else {
             return regionLocal;
@@ -4283,7 +4283,7 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
         d_children_2underLocal = d_children_2under;
     }
     private Ydses_c5 getYdses_c5_lag1() {
-        if (benefitUnit!=null) {
+        if (model.isShockPropagation() && benefitUnit!=null) {
             return getBenefitUnit().getYdses_c5_lag1();
         } else {
             return ydses_c5_lag1Local;
@@ -4297,7 +4297,7 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
         }
     }
     private Integer getN_children_allAges_lag1() {
-        if (benefitUnit != null) {
+        if (model.isShockPropagation() && benefitUnit != null) {
             return (benefitUnit.getN_children_allAges_lag1() != null) ? benefitUnit.getN_children_allAges_lag1() : 0;
         } else {
             return n_children_allAges_lag1Local;
@@ -4311,7 +4311,7 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
         }
     }
     private Integer getN_children_02_lag1() {
-        if (benefitUnit != null) {
+        if (model.isShockPropagation() && benefitUnit != null) {
             return (benefitUnit.getN_children_02_lag1() != null) ? benefitUnit.getN_children_02_lag1() : 0;
         } else {
             return n_children_02_lag1Local;

@@ -1,9 +1,10 @@
 package simpaths.model.enums.baselineDataEnums;
 
 public enum Cohort {
-    THIRTY(30, 39),
-    FORTY(40, 49),
-    FIFTY(50, 59);
+    TWENTY(20,20),
+    THIRTY(30, 30),
+    FORTY(40, 40),
+    FIFTY(50, 50);
 
     private final int minAge;
     private final int maxAge;

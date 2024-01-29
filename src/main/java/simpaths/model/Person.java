@@ -1286,7 +1286,7 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
         }
 
         toBePartnered = false;
-        double probitAdjustment = 0.;
+        double probitAdjustment = 1.5;
         if (drawPartnershipFormation < 0.) {
             drawPartnershipFormation = cohabitInnov.nextDouble();
         }
@@ -4153,6 +4153,7 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
             deh_c3 = getPersonVariable(currentYear, personID, "deh_c3", Education_ValueType.INSTANCE);
             les_c4_lag1 = getPersonVariable(baselineDataYear, personID, "les_c4", Les_c4_ValueType.INSTANCE);
             ypnbihs_dv_lag1 = getPersonVariable(baselineDataYear, personID, "ypnbihs_dv", DoubleValueType.INSTANCE);
+            fullTimeHourlyEarningsPotential = getPersonVariable(baselineDataYear, personID, "fullTimeHourlyEarningsPotential", DoubleValueType.INSTANCE);
 
             // Set benefit unit level variables
             ydses_c5_lag1Local = getBenefitUnitVariable(baselineDataYear, benefitUnitIDinBD, "ydses_c5", Ydses_c5_ValueType.INSTANCE);

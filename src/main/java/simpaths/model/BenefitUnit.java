@@ -499,7 +499,7 @@ public class BenefitUnit implements EventListener, IDoubleSource, Weight, Compar
 		this(benefitUnitIdCounter++);
 		region = p1.getRegion();
 
-		if (region != p2.getRegion()) {
+		if (model.isShockPropagation() && region != p2.getRegion()) {
 			throw new RuntimeException("ERROR - region of responsible male and female must match!");
 		}
 
@@ -1908,7 +1908,7 @@ public class BenefitUnit implements EventListener, IDoubleSource, Weight, Compar
 
 	public void addResponsibleCouple(Person person, Person partner) {
 
-		if (!person.getRegion().equals(partner.getRegion())) {
+		if (model.isShockPropagation() && !person.getRegion().equals(partner.getRegion())) {
 			throw new RuntimeException("Error - couple belong to two different regions!");
 		}
 

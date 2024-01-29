@@ -136,7 +136,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 
 	@GUIparameter(description = "If unchecked, will use the standard matching method")
 //	private boolean useSBAMMatching = false;
-	private UnionMatchingMethod unionMatchingMethod = UnionMatchingMethod.Parametric;
+	private UnionMatchingMethod unionMatchingMethod = UnionMatchingMethod.ParametricNoRegion;
 
 	@GUIparameter(description = "tick to project mortality based on gender, age, and year specific probabilities")
 	private boolean projectMortality = true;

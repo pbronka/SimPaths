@@ -431,6 +431,16 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
     public static double inverseMillsRatioMaxFemale = Double.MIN_VALUE;
     public static double inverseMillsRatioMinFemale = Double.MAX_VALUE;
 
+    public Indicator getShockedPerson() {
+        return shockedPerson;
+    }
+
+    public void setShockedPerson(Indicator shockedPerson) {
+        this.shockedPerson = shockedPerson;
+    }
+
+    private Indicator shockedPerson = Indicator.False;
+
 
     // ---------------------------------------------------------------------
     // Constructors
@@ -718,6 +728,7 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
         this.dhh_owned = originalPerson.dhh_owned;
         this.receivesBenefitsFlag = originalPerson.receivesBenefitsFlag;
         this.receivesBenefitsFlag_L1 = originalPerson.receivesBenefitsFlag_L1;
+        this.shockedPerson = Indicator.False;
     }
 
 

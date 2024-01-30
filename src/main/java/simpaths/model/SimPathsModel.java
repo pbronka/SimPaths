@@ -52,6 +52,8 @@ import simpaths.data.Parameters;
 import simpaths.model.decisions.DecisionTests;
 import simpaths.model.decisions.ManagerPopulateGrids;
 import simpaths.model.enums.*;
+import simpaths.model.enums.baselineDataEnums.Cohort;
+import simpaths.model.enums.baselineDataEnums.ShockTypes;
 import simpaths.model.taxes.DonorTaxUnit;
 import simpaths.data.filters.FertileFilter;
 import simpaths.model.taxes.DonorTaxUnitPolicy;
@@ -81,13 +83,13 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 	private Country country; // = Country.UK;
 
 	@GUIparameter(description = "Simulated population size (base year)")
-	private Integer popSize = 25000;
+	private Integer popSize = 50000;
 
 	@GUIparameter(description = "Simulation first year [valid range 2011-2017]")
 	private Integer startYear = 2011;
 
 	@GUIparameter(description = "Simulation ends at year [valid range 2011-2050]")
-	private Integer endYear = 2020;
+	private Integer endYear = 2035;
 
 	@GUIparameter(description = "Maximum simulated age")
 	private Integer maxAge = 130;
@@ -271,6 +273,28 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 	@GUIparameter(description = "whether to include geographic region in state space for IO behavioural solutions")
 	private boolean responsesToRegion = false;
 
+	public boolean isHealthShock() {
+		return healthShock;
+	}
+
+	public void setHealthShock(boolean healthShock) {
+		this.healthShock = healthShock;
+	}
+
+	public boolean isPartnershipShock() {
+		return partnershipShock;
+	}
+
+	public void setPartnershipShock(boolean partnershipShock) {
+		this.partnershipShock = partnershipShock;
+	}
+
+	@GUIparameter(description = "Introduce health shock in the initial population")
+	private boolean healthShock = false;
+
+	@GUIparameter(description = "Introduce partnership shock in the initial population")
+	private boolean partnershipShock = false;
+
 	RandomGenerator cohabitInnov;
 	RandomGenerator fertilityInnov;
 	Random initialiseInnov;
@@ -412,6 +436,12 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 	@Override
 	public void buildSchedule() {
 
+		/*
+		First group of events: shocks applied to the initial population in the first period
+		 */
+		EventGroup initialPeriodShocks = new EventGroup();
+		initialPeriodShocks.addEvent(this, Processes.InitialPopulationShocks);
+
 		addEventToAllYears(Processes.StartYear);
 
 		if (enableIntertemporalOptimisations) firstYearSched.addEvent(this, Processes.RationalOptimisation);
@@ -520,6 +550,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		addEventToAllYears(Processes.UpdateYear);
 
 		// UPDATE EVENT QUEUE
+		getEngine().getEventQueue().scheduleOnce(initialPeriodShocks, startYear, -2);
 		getEngine().getEventQueue().scheduleOnce(firstYearSched, startYear, ordering);
 		getEngine().getEventQueue().scheduleRepeat(yearlySchedule, startYear+1, ordering, 1.);
 
@@ -584,6 +615,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		RationalOptimisation,
 		UpdateYear,
 		CheckForEmptyBenefitUnits,
+		InitialPopulationShocks,
 	}
 
 	@Override
@@ -710,6 +742,17 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 					removeBenefitUnit(benefitUnit);
 				}
 				break;
+			case InitialPopulationShocks:
+				/*
+				Introduce shocks to health, employment, and partnership status in the initial period
+				 */
+				if (healthShock) {
+					introduceShock(ShockTypes.Health);
+				}
+				if (partnershipShock) {
+					introduceShock(ShockTypes.Partnership);
+				}
+				break;
 			default:
 				break;
 		}
@@ -721,6 +764,110 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 	 * METHODS IMPLEMENTING PROCESS LEVEL COMPUTATIONS
 	 *
 	 */
+
+	public void applyPartnerLeavingShock(Gender gender, Cohort cohort) {
+		List<Person> personsToLeavePartners = new ArrayList<>();
+		for (BenefitUnit bu : benefitUnits) {
+			if (bu.getOccupancy() != null && bu.getOccupancy().equals(Occupancy.Couple)) {
+				Person personToLeave = null;
+
+				switch (gender) {
+					case Male:
+						if (bu.getMale().getDag() >= cohort.getMinAge() && bu.getMale().getDag() <= cohort.getMaxAge()) {
+							/*
+							Note: it is always the woman leaving the partnership. If the cohort we consider is of men, they are left by their partners.
+							If the cohort is women, then they leave their partners.
+							This is to stay consistent with how partnership dissolution is modelled in the "full" model, where it is always the woman leaving.
+							 */
+							personToLeave = bu.getMale().getPartner();
+						}
+						break;
+					case Female:
+						if (bu.getFemale().getDag() >= cohort.getMinAge() && bu.getFemale().getDag() <= cohort.getMaxAge()) {
+							personToLeave = bu.getFemale();
+						}
+						break;
+				}
+
+				if (personToLeave != null) {
+					personsToLeavePartners.add(personToLeave);
+				}
+
+			}
+		}
+
+		for (Person personToLeave : personsToLeavePartners) {
+			personToLeave.setShockedPerson(Indicator.True);
+			personToLeave.getPartner().setShockedPerson(Indicator.True);
+			personToLeave.leavePartner();
+		}
+	}
+
+	/*
+	Method to introduce shocks in the initial population
+	 */
+	private void introduceShock(ShockTypes shockType) {
+		switch (shockType) {
+			case Health:
+				for (Person p : persons) {
+					p.setShockedPerson(Indicator.False);
+					if (p.getBenefitUnit().getOccupancy() != null) {
+						switch (p.getBenefitUnit().getOccupancy()) {
+							case Couple:
+								if (p.getPartner() != null) {
+									if (p.getHourlyWageRate() < p.getPartner().getHourlyWageRate()) { // Partner's earnings are higher => partner is head of the BU
+										if (p.getPartner().getDhe().getValue() > 1.) {
+											p.getPartner().setDhe(Dhe.Poor);
+											p.getPartner().setDhe_lag1(Dhe.Poor);
+											p.getPartner().setShockedPerson(Indicator.True);
+										}
+									} else if (p.getHourlyWageRate() > p.getPartner().getHourlyWageRate()) { // Partner's earnings are lower => person is head of the BU
+										if (p.getDhe().getValue() > 1.) {
+											p.setDhe(Dhe.Poor); // If p has potential earnings higher than partner, set health to zero
+											p.setDhe_lag1(Dhe.Poor);
+											p.setShockedPerson(Indicator.True);
+										}
+									} else { // Else, earnings must be the same => male is the BU head
+										if (Gender.Male.equals(p.getDgn())) {
+											if (p.getDhe().getValue() > 1.) {
+												p.setDhe(Dhe.Poor); // If p has potential earnings higher than partner, set health to zero
+												p.setDhe_lag1(Dhe.Poor);
+												p.setShockedPerson(Indicator.True);
+											}
+										} else {
+											if (p.getPartner().getDhe().getValue() > 1.) {
+												p.getPartner().setDhe(Dhe.Poor);
+												p.getPartner().setDhe_lag1(Dhe.Poor);
+												p.getPartner().setShockedPerson(Indicator.True);
+											}
+										}
+									}
+								}
+								break;
+							case Single_Male: // Note that since there is no break statement this goes into the Single_Female case which has the same behaviour.
+							case Single_Female:
+								if (p.getDhe().getValue() > 1.) {
+									p.setDhe(Dhe.Poor);
+									p.setDhe_lag1(Dhe.Poor);
+									p.setShockedPerson(Indicator.True);
+								}
+								break;
+						}
+					} else {
+						System.out.println("Null occupancy for person ID " + p.getKey().getId() + ". Re-initializing benefit unit fields.");
+						p.getBenefitUnit().initializeFields();
+					}
+				}
+				break;
+			case Partnership:
+				for (Person p : persons) {
+					p.setShockedPerson(Indicator.False);
+				}
+				//applyPartnerLeavingShock(Gender.Male, Cohort.THIRTY);
+				applyPartnerLeavingShock(Gender.Male, Cohort.THIRTY);
+				break;
+		}
+	}
 
 
 	/**

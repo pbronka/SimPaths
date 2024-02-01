@@ -287,7 +287,7 @@ public class Parameters {
 
     //Scheduling
     public static final int MODEL_ORDERING = 0;
-    public static final int COLLECTOR_ORDERING = -1; //-2
+    public static final int COLLECTOR_ORDERING = 1; //-2
     public static final int OBSERVER_ORDERING = 2; //-1
 
     //Initialise values specifying domain of original sick probability curves
@@ -2444,7 +2444,6 @@ public class Parameters {
         rebaseIndexMap(TimeSeriesVariable.Inflation);
         rebaseIndexMap(TimeSeriesVariable.WageGrowth);
         rebaseIndexMap(TimeSeriesVariable.CareProvisionAdjustment, startYear, false);
-        rebaseIndexMap(TimeSeriesVariable.PartnershipAdjustment, startYear, false);
 
         // load year-specific fiscal policy parameters
         socialCarePolicy = ExcelAssistant.loadCoefficientMap("input/policy parameters.xlsx", "social care", 1, 8);

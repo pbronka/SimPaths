@@ -172,10 +172,10 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 	public boolean donorPoolAveraging = true;
 
 	@GUIparameter(description = "Introduce health shock in the initial population")
-	private boolean healthShock = true;
+	private boolean healthShock = false;
 
 	@GUIparameter(description = "Introduce partnership shock in the initial population")
-	private boolean partnershipShock = true;
+	private boolean partnershipShock = false;
 
 	private int ordering = Parameters.MODEL_ORDERING;    //Used in Scheduling of model events.  Schedule model events at the same time as the collector and observer events, but a lower order, so will be fired before the collector and observer have updated.
 
@@ -1176,6 +1176,25 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		}
 	}
 
+	public void applyHealthShock(Gender gender, Cohort cohort) {
+		List<Person> personsForHealthShock = new ArrayList<>();
+
+		for (Person person : persons) {
+			if (gender.equals(person.getDgn()) && person.getDag() >= cohort.getMinAge() && person.getDag() <= cohort.getMaxAge()) {
+				personsForHealthShock.add(person);
+			}
+		}
+
+		for (Person person : personsForHealthShock) {
+			person.setShockedPerson(Indicator.True);
+			person.setDhe(Dhe.Poor);
+			person.setDhe_lag1(Dhe.Poor);
+			if (person.getPartner() != null) {
+				person.getPartner().setDhesp_lag1(Dhe.Poor);
+			}
+		}
+	}
+
 	public void applyPartnerLeavingShock(Gender gender, Cohort cohort) {
 		List<Person> personsToLeavePartners = new ArrayList<>();
 		for (BenefitUnit bu : benefitUnits) {
@@ -1223,53 +1242,8 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 			case Health:
 				for (Person p : persons) {
 					p.setShockedPerson(Indicator.False);
-					if (p.getBenefitUnit().getOccupancy() != null) {
-						switch (p.getBenefitUnit().getOccupancy()) {
-							case Couple:
-								if (p.getPartner() != null) {
-									if (p.getHourlyWageRate() < p.getPartner().getHourlyWageRate()) { // Partner's earnings are higher => partner is head of the BU
-										if (p.getPartner().getDhe().getValue() > 1.) {
-											p.getPartner().setDhe(Dhe.Poor);
-											p.getPartner().setDhe_lag1(Dhe.Poor);
-											p.getPartner().setShockedPerson(Indicator.True);
-										}
-									} else if (p.getHourlyWageRate() > p.getPartner().getHourlyWageRate()) { // Partner's earnings are lower => person is head of the BU
-										if (p.getDhe().getValue() > 1.) {
-											p.setDhe(Dhe.Poor); // If p has potential earnings higher than partner, set health to zero
-											p.setDhe_lag1(Dhe.Poor);
-											p.setShockedPerson(Indicator.True);
-										}
-									} else { // Else, earnings must be the same => male is the BU head
-										if (Gender.Male.equals(p.getDgn())) {
-											if (p.getDhe().getValue() > 1.) {
-												p.setDhe(Dhe.Poor); // If p has potential earnings higher than partner, set health to zero
-												p.setDhe_lag1(Dhe.Poor);
-												p.setShockedPerson(Indicator.True);
-											}
-										} else {
-											if (p.getPartner().getDhe().getValue() > 1.) {
-												p.getPartner().setDhe(Dhe.Poor);
-												p.getPartner().setDhe_lag1(Dhe.Poor);
-												p.getPartner().setShockedPerson(Indicator.True);
-											}
-										}
-									}
-								}
-								break;
-							case Single_Male: // Note that since there is no break statement this goes into the Single_Female case which has the same behaviour.
-							case Single_Female:
-								if (p.getDhe().getValue() > 1.) {
-									p.setDhe(Dhe.Poor);
-									p.setDhe_lag1(Dhe.Poor);
-									p.setShockedPerson(Indicator.True);
-								}
-								break;
-						}
-					} else {
-						System.out.println("Null occupancy for person ID " + p.getKey().getId() + ". Re-initializing benefit unit fields.");
-						p.getBenefitUnit().initializeFields();
-					}
 				}
+				applyHealthShock(Gender.Male, Cohort.THIRTY);
 				break;
 			case Partnership:
 				for (Person p : persons) {

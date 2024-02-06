@@ -2340,7 +2340,7 @@ public class BenefitUnit implements EventListener, IDoubleSource, Weight, Compar
 					} else return 0.;
 				} else throw new IllegalArgumentException("Error - the region used in regression doesn't match the country in the simulation!");
 			case MaleLeisure_MaleAge50Above:
-				if (male.getDag() >= 50) {
+				if (male.getDag() >= Parameters.getAgeWithOffset(Gender.Male, model.getYear())) {
 					return (Parameters.HOURS_IN_WEEK - male.getLabourSupplyHoursWeekly());
 				} else return 0.;
 			case MaleLeisure_FemaleLeisure:            //Male leisure interacted with female leisure
@@ -2434,7 +2434,7 @@ public class BenefitUnit implements EventListener, IDoubleSource, Weight, Compar
 					} else return 0.;
 				} else throw new IllegalArgumentException("Error - the region used in regression doesn't match the country in the simulation!");
 			case FemaleLeisure_FemaleAge50Above:
-				if (female.getDag() >= 50) {
+				if (female.getDag() >= Parameters.getAgeWithOffset(Gender.Female, model.getYear())) {
 					return (Parameters.HOURS_IN_WEEK - female.getLabourSupplyHoursWeekly());
 				} else return 0.;
 				//Note: In the previous version of the model, Fixed Cost was returning -1 to match the regression coefficients

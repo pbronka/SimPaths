@@ -2898,4 +2898,9 @@ public class Parameters {
         Parameters.coeffLabourSupplyUtilityCouples = coeffLabourSupplyUtilityCouples;
     }
 
+    public static int getAgeWithOffset(Gender gender, int year) {
+        int offset = getFixedRetireAge(2017, gender) - 50; // Offset is retirement age in 2017 - 50
+        return getFixedRetireAge(year, gender) - offset;
+    }
+
 }

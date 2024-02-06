@@ -880,9 +880,14 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
      */
     private void simpleAgeing() {
         dag++;
+        boolean flagDies = considerMortality();
         dag_sq = dag*dag;
         benefitUnit.clearStates(); // states object used to manage optimised decisions
         matchedWithBaseline = Indicator.False;
+
+        if (flagDies) {
+            death();
+        }
 
         //Update years in partnership (before the lagged value is updated)
         dcpyy_lag1 = dcpyy; //Update lag value outside of updateVariables() method
@@ -1281,8 +1286,9 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
 
     protected void considerCohabitation() {
 
+        boolean successfullyMatched = false;
         if (!model.isShockPropagation() && model.isPartnershipShock()) { // Without shock propagation, load data from the baseline datafile if partnership shock is enabled
-            setPartnershipRegressionVariablesFromBaseline();
+            successfullyMatched = setPartnershipRegressionVariablesFromBaseline();
         }
 
         toBePartnered = false;
@@ -1293,7 +1299,7 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
         probitAdjustment = Parameters.getTimeSeriesValue(getYear(), TimeSeriesVariable.PartnershipAdjustment);
 
 
-        if (model.getCountry() == Country.UK && dag >= Parameters.MIN_AGE_COHABITATION) {
+        if (model.getCountry() == Country.UK && dag >= Parameters.MIN_AGE_COHABITATION && (model.isShockPropagation() || successfullyMatched)) {
             if (partner == null) {
                 if (dag <= 29 && les_c4 == Les_c4.Student && !leftEducation) {
                     double score = Parameters.getRegPartnershipU1a().getScore(this, Person.DoublesVariables.class);
@@ -4134,7 +4140,8 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
     /**
      * This method loads values of independent variables used in the consider cohabitation regressions from baseline data
      */
-    protected void setPartnershipRegressionVariablesFromBaseline() {
+    protected boolean setPartnershipRegressionVariablesFromBaseline() {
+        boolean successfullyMatched = false;
         boolean isFirstYear = model.getYear() == model.getStartYear();
         int currentYear = model.getYear();
         int baselineDataYear = isFirstYear ? currentYear : currentYear - 1;
@@ -4161,8 +4168,11 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
             n_children_02_lag1Local = getBenefitUnitVariable(baselineDataYear, benefitUnitIDinBD, "n_children_02", IntValueType.INSTANCE);
             regionLocal = getBenefitUnitVariable(baselineDataYear, benefitUnitIDinBD, "region", Region_ValueType.INSTANCE);
 
+            successfullyMatched = true;
+
             // Note: partner's variables are not set from the baseline because they directly depend on the partnership process.
         }
+        return successfullyMatched;
     }
 
     private boolean matchPersonInBaseline(int year) {

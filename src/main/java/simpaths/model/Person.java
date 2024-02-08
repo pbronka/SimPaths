@@ -1468,7 +1468,6 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
 
         boolean successfullyMatched = false;
         if (!model.isShockPropagation() && model.isWageShock()) { // Without shock propagation, load data from the baseline datafile if health shock is enabled
-            setWageRegressionVariablesFromBaseline();
             successfullyMatched = setWageRegressionVariablesFromBaseline();
         }
 

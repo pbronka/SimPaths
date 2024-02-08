@@ -366,7 +366,8 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		if (!shockPropagation) {
 			baselineData = new BaselineData(); // Instantiate BaselineData object, loading baseline data for the complexity project
 			List<String> includedColumns = new ArrayList<>();
-			includedColumns.addAll(Arrays.asList("id_Person", "idBenefitUnit", "dag", "ydses_c5", "dhe", "region", "deh_c3", "les_c4", "dhhtp_c4", "dlltsd", "weight", "n_children_allAges", "n_children_02", "ypnbihs_dv", "fullTimeHourlyEarningsPotential", "ded", "dehm_c3", "dehf_c3", "dcpst", "dlltsd")); // List of variables required by health regressions
+			if (partnershipShock || healthShock) includedColumns.addAll(Arrays.asList("id_Person", "idBenefitUnit", "dag", "ydses_c5", "dhe", "region", "deh_c3", "les_c4", "dhhtp_c4", "dlltsd", "weight", "n_children_allAges", "n_children_02", "ypnbihs_dv", "fullTimeHourlyEarningsPotential"));
+			if (wageShock) includedColumns.addAll(Arrays.asList("id_Person", "idBenefitUnit", "dag", "dhe", "region", "deh_c3", "les_c4", "dlltsd", "n_children_allAges", "ded", "dehm_c3", "dehf_c3", "dcpst"));
 			baselineData.loadBaselineData(Parameters.BASELINE_DATA_DIRECTORY + "Person.csv", includedColumns, "id_Person", EntityType.Person);
 			baselineData.loadBaselineData(Parameters.BASELINE_DATA_DIRECTORY + "BenefitUnit.csv", includedColumns, "id_BenefitUnit", EntityType.BenefitUnit);
 

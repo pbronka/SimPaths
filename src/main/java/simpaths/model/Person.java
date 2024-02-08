@@ -1077,28 +1077,38 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
 
 	//Health process defines health using H1a or H1b process
 	protected void health() {
-
+        boolean successfullyMatched = false;
         if (!model.isShockPropagation() && model.isHealthShock()) { // Without shock propagation, load data from the baseline datafile if health shock is enabled
-            setHealthRegressionVariablesFromBaseline();
+            successfullyMatched = setHealthRegressionVariablesFromBaseline();
         }
+        
+        if (model.isShockPropagation()) {
+            if ((dag >= 16 && dag <= 29) && Les_c4.Student.equals(les_c4) && leftEducation == false) {
+                //If age is between 16 - 29 and individual has always been in education, follow process H1a:
 
-		if((dag >= 16 && dag <= 29) && Les_c4.Student.equals(les_c4) && leftEducation == false) {
-            //If age is between 16 - 29 and individual has always been in education, follow process H1a:
+                Map<Dhe, Double> probs = Parameters.getRegHealthH1a().getProbabilities(this, Person.DoublesVariables.class);
+                dhe = ManagerRegressions.multiEvent(probs, healthInnov.nextDouble());
+            } else if (dag >= 16) {
 
-            Map<Dhe,Double> probs = Parameters.getRegHealthH1a().getProbabilities(this, Person.DoublesVariables.class);
-            dhe = ManagerRegressions.multiEvent(probs, healthInnov.nextDouble());
-        } else if(dag >= 16) {
+                Map<Dhe, Double> probs = Parameters.getRegHealthH1b().getProbabilities(this, Person.DoublesVariables.class);
+                dhe = ManagerRegressions.multiEvent(probs, healthInnov.nextDouble());
 
-            Map<Dhe,Double> probs = Parameters.getRegHealthH1b().getProbabilities(this, Person.DoublesVariables.class);
-            dhe = ManagerRegressions.multiEvent(probs, healthInnov.nextDouble());
-
-            //If age is over 16 and individual is not in continuous education, also follow process H2b to calculate the probability of long-term sickness / disability:
-            boolean becomeLTSickDisabled = (healthInnov.nextDouble() < Parameters.getRegHealthH2b().getProbability(this, Person.DoublesVariables.class));
-            //TODO: Do we want to allow long-term sick or disabled to recover?
-            if(becomeLTSickDisabled == true) {
-                dlltsd = Indicator.True;
-            } else if(becomeLTSickDisabled == false) {
-                dlltsd = Indicator.False;
+                //If age is over 16 and individual is not in continuous education, also follow process H2b to calculate the probability of long-term sickness / disability:
+                boolean becomeLTSickDisabled = (healthInnov.nextDouble() < Parameters.getRegHealthH2b().getProbability(this, Person.DoublesVariables.class));
+                if (becomeLTSickDisabled == true) {
+                    dlltsd = Indicator.True;
+                } else if (becomeLTSickDisabled == false) {
+                    dlltsd = Indicator.False;
+                }
+            }
+        } else if (successfullyMatched) {
+            if ((dag >= 16 && dag <= 29) && Les_c4.Student.equals(les_c4) && leftEducation == false) {
+                //If age is between 16 - 29 and individual has always been in education, follow process H1a:
+                Map<Dhe, Double> probs = Parameters.getRegHealthH1a().getProbabilities(this, Person.DoublesVariables.class);
+                dhe = ManagerRegressions.multiEvent(probs, healthInnov.nextDouble());
+            } else if (dag >= 16) {
+                Map<Dhe, Double> probs = Parameters.getRegHealthH1b().getProbabilities(this, Person.DoublesVariables.class);
+                dhe = ManagerRegressions.multiEvent(probs, healthInnov.nextDouble());
             }
         }
     }
@@ -4136,7 +4146,8 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
         benefitUnit.removePerson(this);
         model.removePerson(this);
     }
-
+    
+    
     /**
      * This method loads values of independent variables used in the consider cohabitation regressions from baseline data
      */
@@ -4195,9 +4206,40 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
 
     /**
      * This method loads values of independent variables used in health regressions from baseline data, except for lagged health and disability status
+     *
+     * @return
      */
-    protected void setHealthRegressionVariablesFromBaseline() {
+    protected boolean setHealthRegressionVariablesFromBaseline() {
+        boolean successfullyMatched = false;
+        boolean isFirstYear = model.getYear() == model.getStartYear();
+        int currentYear = model.getYear();
+        int baselineDataYear = isFirstYear ? currentYear : currentYear - 1;
 
+        if ((isFirstYear && matchPersonInBaseline(currentYear)) || (!isFirstYear && matchPersonInBaseline(currentYear) && matchPersonInBaseline(currentYear - 1))) {
+            matchedWithBaseline = Indicator.True;
+
+            long personID = this.getKey().getId();
+            long benefitUnitIDinBD = getBenefitUnitIDFromBaseline(personID, baselineDataYear);
+
+            // Set individual-level variables
+            dag = getPersonVariable(currentYear, personID, "dag", IntValueType.INSTANCE);
+            dag_sq = dag * dag;
+            deh_c3 = getPersonVariable(currentYear, personID, "deh_c3", Education_ValueType.INSTANCE);
+            les_c4 = getPersonVariable(currentYear, personID, "les_c4", Les_c4_ValueType.INSTANCE);
+            les_c4_lag1 = getPersonVariable(baselineDataYear, personID, "les_c4", Les_c4_ValueType.INSTANCE);
+
+            // Set benefit unit level variables
+            ydses_c5_lag1Local = getBenefitUnitVariable(baselineDataYear, benefitUnitIDinBD, "ydses_c5", Ydses_c5_ValueType.INSTANCE);
+            dhhtp_c4_lag1Local = getBenefitUnitVariable(baselineDataYear, benefitUnitIDinBD, "dhhtp_c4", Dhhtp_c4_ValueType.INSTANCE);
+            regionLocal = getBenefitUnitVariable(baselineDataYear, benefitUnitIDinBD, "region", Region_ValueType.INSTANCE);
+
+            successfullyMatched = true;
+
+            // Note: partner's variables are not set from the baseline because they directly depend on the partnership process.
+        }
+        return successfullyMatched;
+        
+        /*
         if (model.getYear() == model.getStartYear()) { // In the first year, use contemporaneous value for lags
 
             // Identify a matching person in the baseline data, based on person ID.
@@ -4254,6 +4296,7 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
                 System.out.println("Simulated person NOT FOUND in the baseline. ID: " + this.getKey().getId());
             }
         }
+         */
     }
 
     public void setYearLocal(Integer yearLocal) {
@@ -4301,7 +4344,7 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
         }
     }
     private Dhhtp_c4 getDhhtp_c4_lag1() {
-        if (benefitUnit!=null) {
+        if (model.isShockPropagation() && benefitUnit!=null) {
             return getBenefitUnit().getDhhtp_c4_lag1();
         } else {
             return dhhtp_c4_lag1Local;

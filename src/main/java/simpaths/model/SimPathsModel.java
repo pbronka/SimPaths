@@ -46,6 +46,7 @@ import java.sql.*;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.random.RandomGenerator;
+import java.util.stream.Collectors;
 
 
 /**
@@ -78,7 +79,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 	private Integer startYear = 2011;
 
 	@GUIparameter(description = "Simulation ends at year [valid range 2011-2050]")
-	private Integer endYear = 2035;
+	private Integer endYear = 2050;
 
 	@GUIparameter(description = "Maximum simulated age")
 	private Integer maxAge = 130;
@@ -176,6 +177,9 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 
 	@GUIparameter(description = "Introduce partnership shock in the initial population")
 	private boolean partnershipShock = false;
+
+	@GUIparameter(description = "Introduce wage shock in the initial population")
+	private boolean wageShock = false;
 
 	private int ordering = Parameters.MODEL_ORDERING;    //Used in Scheduling of model events.  Schedule model events at the same time as the collector and observer events, but a lower order, so will be fired before the collector and observer have updated.
 
@@ -362,20 +366,10 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		if (!shockPropagation) {
 			baselineData = new BaselineData(); // Instantiate BaselineData object, loading baseline data for the complexity project
 			List<String> includedColumns = new ArrayList<>();
-			includedColumns.addAll(Arrays.asList("id_Person", "idBenefitUnit", "dag", "ydses_c5", "dhe", "region", "deh_c3", "les_c4", "dhhtp_c4", "dlltsd", "weight", "n_children_allAges", "n_children_02", "ypnbihs_dv", "fullTimeHourlyEarningsPotential")); // List of variables required by health regressions
+			includedColumns.addAll(Arrays.asList("id_Person", "idBenefitUnit", "dag", "ydses_c5", "dhe", "region", "deh_c3", "les_c4", "dhhtp_c4", "dlltsd", "weight", "n_children_allAges", "n_children_02", "ypnbihs_dv", "fullTimeHourlyEarningsPotential", "ded", "dehm_c3", "dehf_c3", "dcpst", "dlltsd")); // List of variables required by health regressions
 			baselineData.loadBaselineData(Parameters.BASELINE_DATA_DIRECTORY + "Person.csv", includedColumns, "id_Person", EntityType.Person);
 			baselineData.loadBaselineData(Parameters.BASELINE_DATA_DIRECTORY + "BenefitUnit.csv", includedColumns, "id_BenefitUnit", EntityType.BenefitUnit);
 
-			// TODO: Remove later, this is for testing retrieval
-			// Retrival examples below
-			int dage = baselineData.getValue(EntityType.Person, 2011, 1, "dag", IntValueType.INSTANCE);
-			Dhe dhe = baselineData.getValue(EntityType.Person, 2011, 1, "dhe", Dhe_ValueType.INSTANCE);
-			Indicator dcpen = baselineData.getValue(EntityType.Person, 2011, 1, "dcpen", IndicatorValueType.INSTANCE);
-			Dcpst dcpst = baselineData.getValue(EntityType.Person, 2011, 1, "dcpst", Dcpst_ValueType.INSTANCE);
-			Les_c4 les_c4 = baselineData.getValue(EntityType.Person, 2011, 1, "les_c4", Les_c4_ValueType.INSTANCE);
-			Long idPerson =  baselineData.getValue(EntityType.Person, 2011, 1, "id_Person", LongValueType.INSTANCE);
-			Long benefitUnitIDinBD = baselineData.getValue(EntityType.Person, 2011, 1, "idBenefitUnit", LongValueType.INSTANCE);
-			Ydses_c5 ydses = baselineData.getValue(EntityType.BenefitUnit, 2011, benefitUnitIDinBD, "ydses_c5", Ydses_c5_ValueType.INSTANCE);
 			System.out.println("Loaded baseline data.");
 		}
 
@@ -439,6 +433,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		First group of events: shocks applied to the initial population in the first period
 		 */
 		EventGroup initialPeriodShocks = new EventGroup();
+	//	initialPeriodShocks.addEvent(this, Processes.InitialPopulationAdjustment);
 		initialPeriodShocks.addEvent(this, Processes.InitialPopulationShocks);
 
 		/*
@@ -453,7 +448,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		reducedFirstYearSchedule.addEvent(this, Processes.StartYear);
 		reducedFirstYearSchedule.addEvent(this, Processes.UpdateParameters);
 		reducedFirstYearSchedule.addEvent(this, Processes.CheckForEmptyBenefitUnits);
-		reducedFirstYearSchedule.addCollectionEvent(persons, Person.Processes.UpdatePotentialHourlyEarnings); // Hourly earnings updated here for everyone to make sure the value is not null, but then read in from the baseline for those who consider cohabitation.
+		if (!wageShock) reducedFirstYearSchedule.addCollectionEvent(persons, Person.Processes.UpdatePotentialHourlyEarnings); // Hourly earnings updated here for everyone to make sure the value is not null, but then read in from the baseline for those who consider cohabitation.
 		//reducedFirstYearSchedule.addEvent(this, Processes.PopulationAlignment);
 		reducedFirstYearSchedule.addEvent(this, Processes.EndYear);
 		reducedFirstYearSchedule.addEvent(this, Processes.UpdateYear);
@@ -470,6 +465,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		//reducedYearlySchedule.addEvent(this, Processes.PopulationAlignment);
 		reducedYearlySchedule.addCollectionEvent(benefitUnits, BenefitUnit.Processes.Update);
 
+		if (wageShock) reducedYearlySchedule.addCollectionEvent(persons, Person.Processes.UpdatePotentialHourlyEarnings);
 		if (healthShock) reducedYearlySchedule.addCollectionEvent(persons, Person.Processes.Health);
 		if (partnershipShock) {
 			reducedYearlySchedule.addCollectionEvent(persons, Person.Processes.ConsiderCohabitation);
@@ -664,7 +660,8 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		RationalOptimisation,
 		UpdateYear,
 		CheckForEmptyBenefitUnits,
-		InitialPopulationShocks
+		InitialPopulationShocks,
+		InitialPopulationAdjustment
 	}
 
 	@Override
@@ -801,6 +798,15 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 				if (partnershipShock) {
 					introduceShock(ShockTypes.Partnership);
 				}
+				if (wageShock) {
+					introduceShock(ShockTypes.Wage);
+				}
+				break;
+			case InitialPopulationAdjustment:
+				/*
+				Remove benefit units matching some filtering condition from the sample
+				 */
+				removeBenefitUnitsFromInitialPopulation();
 				break;
 			default:
 				break;
@@ -813,6 +819,15 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 	 * METHODS IMPLEMENTING PROCESS LEVEL COMPUTATIONS
 	 *
 	 */
+
+	private void removeBenefitUnitsFromInitialPopulation() {
+		List<BenefitUnit> benefitUnitsToRemoveList = benefitUnits.stream()
+				.filter(benefitUnit -> benefitUnit.getFemale() != null && benefitUnit.getFemale().getDag() >= 45)
+				.collect(Collectors.toList());
+		// benefitUnitsToRemoveList contains the benefit units to be removed
+		benefitUnitsToRemoveList.stream()
+				.forEach(benefitUnit -> removeBenefitUnit(benefitUnit));
+	}
 
 
 	/**
@@ -1176,6 +1191,22 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		}
 	}
 
+	public void applyWageShock(Gender gender, Cohort cohort) {
+		List<Person> personsForWageShock = new ArrayList<>();
+
+		for (Person person : persons) {
+			if (gender.equals(person.getDgn()) && person.getDag() >= cohort.getMinAge() && person.getDag() <= cohort.getMaxAge()) {
+				personsForWageShock.add(person);
+			}
+		}
+
+		for (Person person : personsForWageShock) {
+			person.setShockedPerson(Indicator.True);
+			double currentWage = person.getFullTimeHourlyEarningsPotential();
+			person.setFullTimeHourlyEarningsPotential(0.8 * currentWage);
+		}
+	}
+
 	public void applyHealthShock(Gender gender, Cohort cohort) {
 		List<Person> personsForHealthShock = new ArrayList<>();
 
@@ -1239,6 +1270,12 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 	 */
 	private void introduceShock(ShockTypes shockType) {
 		switch (shockType) {
+			case Wage:
+				for (Person p : persons) {
+					p.setShockedPerson(Indicator.False);
+				}
+				applyWageShock(Gender.Male, Cohort.THIRTY);
+				break;
 			case Health:
 				for (Person p : persons) {
 					p.setShockedPerson(Indicator.False);
@@ -1249,7 +1286,6 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 				for (Person p : persons) {
 					p.setShockedPerson(Indicator.False);
 				}
-				//applyPartnerLeavingShock(Gender.Male, Cohort.THIRTY);
 				applyPartnerLeavingShock(Gender.Male, Cohort.THIRTY);
 				break;
 		}
@@ -3467,6 +3503,14 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 
 	public void setPartnershipShock(boolean partnershipShock) {
 		this.partnershipShock = partnershipShock;
+	}
+
+	public boolean isWageShock() {
+		return wageShock;
+	}
+
+	public void setWageShock(boolean wageShock) {
+		this.wageShock = wageShock;
 	}
 
 	public BaselineData getBaselineData() {

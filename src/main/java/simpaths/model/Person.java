@@ -1466,54 +1466,61 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
 
     protected void updateFullTimeHourlyEarnings() {
 
-        double rmse;
-        if (les_c4_lag1.equals(Les_c4.EmployedOrSelfEmployed)) {
-            if (wageRegressionRandomComponentE == null || !model.fixRegressionStochasticComponent) {
-                if (Gender.Male.equals(dgn)) {
-                    rmse = Parameters.getRMSEForRegression("Wages_MalesE");
-                } else {
-                    rmse = Parameters.getRMSEForRegression("Wages_FemalesE");
-                }
-                wageRegressionRandomComponentE = rmse * wagesInnov.nextGaussian();
-            }
-        } else {
-            if (wageRegressionRandomComponentNE == null || !model.fixRegressionStochasticComponent) {
-                if (Gender.Male.equals(dgn)) {
-                    rmse = Parameters.getRMSEForRegression("Wages_MalesNE");
-                } else {
-                    rmse = Parameters.getRMSEForRegression("Wages_FemalesNE");
-                }
-                wageRegressionRandomComponentNE = rmse * wagesInnov.nextGaussian();
-            }
+        boolean successfullyMatched = false;
+        if (!model.isShockPropagation() && model.isWageShock()) { // Without shock propagation, load data from the baseline datafile if health shock is enabled
+            setWageRegressionVariablesFromBaseline();
+            successfullyMatched = setWageRegressionVariablesFromBaseline();
         }
 
-        double logFullTimeHourlyEarnings;
-        if(Gender.Male.equals(dgn)) {
-            if (Les_c4.EmployedOrSelfEmployed.equals(les_c4_lag1)) {
-                logFullTimeHourlyEarnings = Parameters.getRegWagesMalesE().getScore(this, Person.DoublesVariables.class) + wageRegressionRandomComponentE;
-            }
-            else {
-                logFullTimeHourlyEarnings = Parameters.getRegWagesMalesNE().getScore(this, Person.DoublesVariables.class) + wageRegressionRandomComponentNE;
-            }
-        } else {
-            if (Les_c4.EmployedOrSelfEmployed.equals(les_c4_lag1)) {
-                logFullTimeHourlyEarnings = Parameters.getRegWagesFemalesE().getScore(this, Person.DoublesVariables.class) + wageRegressionRandomComponentE;
-            }
-            else {
-                logFullTimeHourlyEarnings = Parameters.getRegWagesFemalesNE().getScore(this, Person.DoublesVariables.class) + wageRegressionRandomComponentNE;
-            }
-        }
+       if (model.isShockPropagation() || successfullyMatched) {
+           double rmse;
+           if (les_c4_lag1.equals(Les_c4.EmployedOrSelfEmployed)) {
+               if (wageRegressionRandomComponentE == null || !model.fixRegressionStochasticComponent) {
+                   if (Gender.Male.equals(dgn)) {
+                       rmse = Parameters.getRMSEForRegression("Wages_MalesE");
+                   } else {
+                       rmse = Parameters.getRMSEForRegression("Wages_FemalesE");
+                   }
+                   wageRegressionRandomComponentE = rmse * wagesInnov.nextGaussian();
+               }
+           } else {
+               if (wageRegressionRandomComponentNE == null || !model.fixRegressionStochasticComponent) {
+                   if (Gender.Male.equals(dgn)) {
+                       rmse = Parameters.getRMSEForRegression("Wages_MalesNE");
+                   } else {
+                       rmse = Parameters.getRMSEForRegression("Wages_FemalesNE");
+                   }
+                   wageRegressionRandomComponentNE = rmse * wagesInnov.nextGaussian();
+               }
+           }
 
-        // Uprate and set level of potential earnings
-        double upratedFullTimeHourlyEarnings = Math.exp(logFullTimeHourlyEarnings);
-        if (upratedFullTimeHourlyEarnings < Parameters.MIN_HOURLY_WAGE_RATE) {
-            setFullTimeHourlyEarningsPotential(Parameters.MIN_HOURLY_WAGE_RATE);
-        } else if (upratedFullTimeHourlyEarnings > Parameters.MAX_HOURLY_WAGE_RATE) {
-            setFullTimeHourlyEarningsPotential(Parameters.MAX_HOURLY_WAGE_RATE);
-        } else {
-            setFullTimeHourlyEarningsPotential(upratedFullTimeHourlyEarnings);
-        }
+           double logFullTimeHourlyEarnings;
+           if (Gender.Male.equals(dgn)) {
+               if (Les_c4.EmployedOrSelfEmployed.equals(les_c4_lag1)) {
+                   logFullTimeHourlyEarnings = Parameters.getRegWagesMalesE().getScore(this, Person.DoublesVariables.class) + wageRegressionRandomComponentE;
+               } else {
+                   logFullTimeHourlyEarnings = Parameters.getRegWagesMalesNE().getScore(this, Person.DoublesVariables.class) + wageRegressionRandomComponentNE;
+               }
+           } else {
+               if (Les_c4.EmployedOrSelfEmployed.equals(les_c4_lag1)) {
+                   logFullTimeHourlyEarnings = Parameters.getRegWagesFemalesE().getScore(this, Person.DoublesVariables.class) + wageRegressionRandomComponentE;
+               } else {
+                   logFullTimeHourlyEarnings = Parameters.getRegWagesFemalesNE().getScore(this, Person.DoublesVariables.class) + wageRegressionRandomComponentNE;
+               }
+           }
+
+           // Uprate and set level of potential earnings
+           double upratedFullTimeHourlyEarnings = Math.exp(logFullTimeHourlyEarnings);
+           if (upratedFullTimeHourlyEarnings < Parameters.MIN_HOURLY_WAGE_RATE) {
+               setFullTimeHourlyEarningsPotential(Parameters.MIN_HOURLY_WAGE_RATE);
+           } else if (upratedFullTimeHourlyEarnings > Parameters.MAX_HOURLY_WAGE_RATE) {
+               setFullTimeHourlyEarningsPotential(Parameters.MAX_HOURLY_WAGE_RATE);
+           } else {
+               setFullTimeHourlyEarningsPotential(upratedFullTimeHourlyEarnings);
+           }
+       }
     }
+
     public void setYpncp(double val) {
         ypncp = val;
     }
@@ -4146,7 +4153,39 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
         benefitUnit.removePerson(this);
         model.removePerson(this);
     }
-    
+
+    protected boolean setWageRegressionVariablesFromBaseline() {
+        boolean successfullyMatched = false;
+        boolean isFirstYear = model.getYear() == model.getStartYear();
+        int currentYear = model.getYear();
+        int baselineDataYear = isFirstYear ? currentYear : currentYear - 1;
+
+        if ((isFirstYear && matchPersonInBaseline(currentYear)) || (!isFirstYear && matchPersonInBaseline(currentYear) && matchPersonInBaseline(currentYear - 1))) {
+            matchedWithBaseline = Indicator.True;
+
+            long personID = this.getKey().getId();
+            long benefitUnitIDinCD = getBenefitUnitIDFromBaseline(personID, currentYear);
+
+            // Set individual-level variables
+            dag = getPersonVariable(currentYear, personID, "dag", IntValueType.INSTANCE);
+            dag_sq = dag * dag;
+            deh_c3 = getPersonVariable(currentYear, personID, "deh_c3", Education_ValueType.INSTANCE);
+            dhe = getPersonVariable(currentYear, personID, "dhe", Dhe_ValueType.INSTANCE);
+            les_c4_lag1 = getPersonVariable(baselineDataYear, personID, "les_c4", Les_c4_ValueType.INSTANCE);
+            ded = getPersonVariable(currentYear, personID, "ded", IndicatorValueType.INSTANCE);
+            dehm_c3 = getPersonVariable(currentYear, personID, "dehm_c3", Education_ValueType.INSTANCE);
+            dehf_c3 = getPersonVariable(currentYear, personID, "dehf_c3", Education_ValueType.INSTANCE);
+            dcpst = getPersonVariable(currentYear, personID, "dcpst", Dcpst_ValueType.INSTANCE);
+            dlltsd = getPersonVariable(currentYear, personID, "dlltsd", IndicatorValueType.INSTANCE);
+
+            // Set benefit unit level variables
+            regionLocal = getBenefitUnitVariable(currentYear, benefitUnitIDinCD, "region", Region_ValueType.INSTANCE);
+            n_children_allAges_Local = getBenefitUnitVariable(currentYear, benefitUnitIDinCD, "n_children_allAges", IntValueType.INSTANCE);
+
+            successfullyMatched = true;
+        }
+        return successfullyMatched;
+    }
     
     /**
      * This method loads values of independent variables used in the consider cohabitation regressions from baseline data
@@ -4234,69 +4273,9 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
             regionLocal = getBenefitUnitVariable(baselineDataYear, benefitUnitIDinBD, "region", Region_ValueType.INSTANCE);
 
             successfullyMatched = true;
-
-            // Note: partner's variables are not set from the baseline because they directly depend on the partnership process.
         }
+
         return successfullyMatched;
-        
-        /*
-        if (model.getYear() == model.getStartYear()) { // In the first year, use contemporaneous value for lags
-
-            // Identify a matching person in the baseline data, based on person ID.
-            if (model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "id_Person", LongValueType.INSTANCE) != null) {
-                matchedWithBaseline = Indicator.True;
-            }
-
-            if (Indicator.True == matchedWithBaseline) {
-
-                // Obtain ID of a benefit unit this person belongs to in the baseline
-                long benefitUnitID = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "idBenefitUnit", LongValueType.INSTANCE);
-
-                // Load benefit unit level variables required in the health process
-                this.benefitUnit.setYdses_c5_lag1(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear(), benefitUnitID, "ydses_c5", Ydses_c5_ValueType.INSTANCE));
-                this.benefitUnit.setRegion(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear(), benefitUnitID, "region", Region_ValueType.INSTANCE));
-                this.benefitUnit.setDhhtp_c4_lag1(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear(), benefitUnitID, "dhhtp_c4", Dhhtp_c4_ValueType.INSTANCE));
-
-                // Load individual level variables required in the health process
-                dag = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "dag", IntValueType.INSTANCE);
-                dag_sq = dag * dag;
-                this.deh_c3 = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "deh_c3", Education_ValueType.INSTANCE);
-                this.les_c4_lag1 = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "les_c4", Les_c4_ValueType.INSTANCE);
-
-            } else {
-                System.out.println("Simulated person NOT FOUND in the baseline. ID: " + this.getKey().getId());
-            }
-
-        } else { // In subsequent years, use contemporaneous and lagged values, as required.
-
-            // Identify a matching person in the baseline data, based on person ID.
-            // A match requires that the person is found in the current year, and in the previous year.
-            if (model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "idBenefitUnit", LongValueType.INSTANCE) != null &&
-                    model.getBaselineData().getValue(EntityType.Person, model.getYear()-1, this.getKey().getId(), "idBenefitUnit", LongValueType.INSTANCE) != null) {
-                matchedWithBaseline = Indicator.True;
-            }
-
-            if (Indicator.True == matchedWithBaseline) {
-
-                // Obtain ID of a benefit unit this person belonged to in the baseline in the previous year
-                long benefitUnitID = model.getBaselineData().getValue(EntityType.Person, model.getYear()-1, this.getKey().getId(), "idBenefitUnit", LongValueType.INSTANCE);
-
-                // Load benefit unit level variables required in the health process
-                this.benefitUnit.setYdses_c5_lag1(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear()-1, benefitUnitID, "ydses_c5", Ydses_c5_ValueType.INSTANCE));
-                this.benefitUnit.setRegion(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear()-1, benefitUnitID, "region", Region_ValueType.INSTANCE));
-                this.benefitUnit.setDhhtp_c4_lag1(model.getBaselineData().getValue(EntityType.BenefitUnit, model.getYear()-1, benefitUnitID, "dhhtp_c4", Dhhtp_c4_ValueType.INSTANCE));
-
-                // Load individual level variables required in the health process
-                dag = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "dag", IntValueType.INSTANCE);
-                dag_sq = dag * dag;
-                this.deh_c3 = model.getBaselineData().getValue(EntityType.Person, model.getYear(), this.getKey().getId(), "deh_c3", Education_ValueType.INSTANCE);
-                this.les_c4_lag1 = model.getBaselineData().getValue(EntityType.Person, model.getYear()-1, this.getKey().getId(), "les_c4", Les_c4_ValueType.INSTANCE);
-
-            } else {
-                System.out.println("Simulated person NOT FOUND in the baseline. ID: " + this.getKey().getId());
-            }
-        }
-         */
     }
 
     public void setYearLocal(Integer yearLocal) {
@@ -4358,7 +4337,7 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
         }
     }
     private Integer getN_children_allAges() {
-        if (benefitUnit != null) {
+        if (model.isShockPropagation() && benefitUnit != null) {
             return benefitUnit.getN_children_allAges(false);
         } else {
             return n_children_allAges_Local;

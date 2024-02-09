@@ -1205,6 +1205,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 			person.setShockedPerson(Indicator.True);
 			double currentWage = person.getFullTimeHourlyEarningsPotential();
 			person.setFullTimeHourlyEarningsPotential(0.8 * currentWage);
+			person.setL1_fullTimeHourlyEarningsPotential(0.8 * currentWage);
 		}
 	}
 

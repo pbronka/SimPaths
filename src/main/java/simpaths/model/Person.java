@@ -4176,6 +4176,7 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
             dehf_c3 = getPersonVariable(currentYear, personID, "dehf_c3", Education_ValueType.INSTANCE);
             dcpst = getPersonVariable(currentYear, personID, "dcpst", Dcpst_ValueType.INSTANCE);
             dlltsd = getPersonVariable(currentYear, personID, "dlltsd", IndicatorValueType.INSTANCE);
+            hoursWorkedWeekly = getPersonVariable(currentYear, personID, "hoursWorkedWeekly", IntValueType.INSTANCE);
 
             // Set benefit unit level variables
             regionLocal = getBenefitUnitVariable(currentYear, benefitUnitIDinCD, "region", Region_ValueType.INSTANCE);

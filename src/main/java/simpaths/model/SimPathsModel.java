@@ -449,7 +449,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		reducedFirstYearSchedule.addEvent(this, Processes.StartYear);
 		reducedFirstYearSchedule.addEvent(this, Processes.UpdateParameters);
 		reducedFirstYearSchedule.addEvent(this, Processes.CheckForEmptyBenefitUnits);
-		if (!wageShock) reducedFirstYearSchedule.addCollectionEvent(persons, Person.Processes.UpdatePotentialHourlyEarnings); // Hourly earnings updated here for everyone to make sure the value is not null, but then read in from the baseline for those who consider cohabitation.
+		reducedFirstYearSchedule.addCollectionEvent(persons, Person.Processes.UpdatePotentialHourlyEarnings); // Hourly earnings updated here for everyone to make sure the value is not null, but then read in from the baseline for those who consider cohabitation.
 		//reducedFirstYearSchedule.addEvent(this, Processes.PopulationAlignment);
 		reducedFirstYearSchedule.addEvent(this, Processes.EndYear);
 		reducedFirstYearSchedule.addEvent(this, Processes.UpdateYear);

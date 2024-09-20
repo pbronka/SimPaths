@@ -240,7 +240,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 	private boolean projectSocialCare = false;
 
 	@GUIparameter(description = "Untick to load outcome of all processes other than the shocked one from baseline dataset")
-	private boolean shockPropagation = false; // If false, outcome of all processes except employment process will be read from the baseline data. B. That means that the shock to employment only affects employment, the other variables follow the same evolution as in the baseline (ie. they are as employment continued on its baseline trajectory)
+	private boolean shockPropagation = true; // If false, outcome of all processes except employment process will be read from the baseline data. B. That means that the shock to employment only affects employment, the other variables follow the same evolution as in the baseline (ie. they are as employment continued on its baseline trajectory)
 
 	@GUIparameter(description = "tick to enable intertemporal optimised consumption and labour decisions")
 	private boolean enableIntertemporalOptimisations = false;
@@ -1204,8 +1204,8 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		for (Person person : personsForWageShock) {
 			person.setShockedPerson(Indicator.True);
 			double currentWage = person.getFullTimeHourlyEarningsPotential();
-			person.setFullTimeHourlyEarningsPotential(0.5 * currentWage);
-			person.setL1_fullTimeHourlyEarningsPotential(0.5 * currentWage);
+			person.setFullTimeHourlyEarningsPotential(0.1 * currentWage);
+			person.setL1_fullTimeHourlyEarningsPotential(0.1 * currentWage);
 		}
 	}
 
@@ -1276,19 +1276,19 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 				for (Person p : persons) {
 					p.setShockedPerson(Indicator.False);
 				}
-				applyWageShock(Gender.Male, Cohort.THIRTY);
+				applyWageShock(Gender.Female, Cohort.FIFTY);
 				break;
 			case Health:
 				for (Person p : persons) {
 					p.setShockedPerson(Indicator.False);
 				}
-				applyHealthShock(Gender.Male, Cohort.THIRTY);
+				applyHealthShock(Gender.Male, Cohort.FIFTY);
 				break;
 			case Partnership:
 				for (Person p : persons) {
 					p.setShockedPerson(Indicator.False);
 				}
-				applyPartnerLeavingShock(Gender.Male, Cohort.THIRTY);
+				applyPartnerLeavingShock(Gender.Male, Cohort.FIFTY);
 				break;
 		}
 	}
@@ -1315,7 +1315,6 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 	 *
 	 *********************************************************/
 	private BenefitUnit cloneBenefitUnit(BenefitUnit originalBenefitUnit, Household newHousehold) {
-
 		// initialise objects
 		BenefitUnit newBenefitUnit = new BenefitUnit(originalBenefitUnit);
 		newBenefitUnit.setHousehold(newHousehold);
@@ -2663,6 +2662,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 	 *
 	 */
 	private void createInitialPopulationDataStructures() {
+		int countEmptyHH = 0, countOrphans = 0;
 
 		System.out.println("Creating population structures");
 
@@ -2766,7 +2766,9 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 				}
 			}
 			if (household.getSize() < 1) {
-				throw new RuntimeException("Empty household included at population load.");
+		//		throw new RuntimeException("Empty household included at population load.");
+				countEmptyHH++;
+				System.out.println("Empty household " + household.getId());
 			}
 			if (!orphans.isEmpty()) {
 
@@ -2821,7 +2823,9 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 				}
 			}
 			if (!orphans.isEmpty()) {
-				throw new RuntimeException("Children not associated with a qualifying benefit unit included in population load.");
+		//		throw new RuntimeException("Children not associated with a qualifying benefit unit included in population load.");
+				countOrphans++;
+				System.out.println("Orphans in household " + household.getId());
 			}
 		}
 		if (!benefitUnitsToAllocate.isEmpty()) {
@@ -2830,6 +2834,8 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		if (!personsToAllocate.isEmpty()) {
 			throw new RuntimeException("Not all persons associated with a benefit unit at population load.");
 		}
+
+		System.out.println("there were " + countEmptyHH + " problems with empty HH. There were " + countOrphans + " problems with orhphans");
 
 
 		/**********************************************************

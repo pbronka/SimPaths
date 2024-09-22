@@ -9,6 +9,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import microsim.engine.SimulationEngine;
 import simpaths.model.enums.baselineDataEnums.EntityType;
 import simpaths.model.enums.baselineDataEnums.ValueType;
 import org.apache.commons.csv.CSVFormat;
@@ -57,9 +58,11 @@ public class BaselineData {
         try (Reader reader = Files.newBufferedReader(Paths.get(filename));
              CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withAllowMissingColumnNames().withFirstRecordAsHeader())) {
 
-            // Identify the indices of the columns containing time and id
+            // Identify the indices of the columns containing time, id, and run
             int timeIndex = csvParser.getHeaderMap().get("time");
             int idEntityIndex = csvParser.getHeaderMap().get(idColumnName);
+            int runIndex = csvParser.getHeaderMap().get("run");
+            int currentRunNumber = SimulationEngine.getInstance().getCurrentRunNumber();
 
             // Create a set of included column names for faster lookup
             Set<String> includedColumnSet = new HashSet<>(includedColumns);
@@ -72,13 +75,27 @@ public class BaselineData {
             }
             // Read each row of the file and store the data in the MultiKeyMap
             for (CSVRecord record : csvParser) {
+                int run = Integer.parseInt(record.get(runIndex));
+
+                // If "run" in the CSV exceeds the current run number, stop parsing
+                if (run > currentRunNumber) {
+                    System.out.println("Encountered run value larger than threshold. Stopping parsing.");
+                    break; // Stop further processing
+                }
+
+                // If "run" value in the CSV doesn't match current run, skip this row and continue iterating
+                if (run != currentRunNumber) {
+                    continue;
+                }
+
+                // Process rows where "run" equals the threshold
                 int year = (int) Double.parseDouble(record.get(timeIndex));
                 long entityId = Long.parseLong(record.get(idEntityIndex));
 
                 // Iterate over the remaining columns and store the data in the MultiKeyMap
                 for (String variableName : csvParser.getHeaderMap().keySet()) {
                     if (variableName.equals("time") || !includedColumnSet.contains(variableName)) {
-                        continue;
+                        continue; // skip remaining code for the current iteration and move to the next iteration of the loop
                     }
 
                     String value = record.get(variableName); // All values are stored as string, and parsed when they are accessed. This should be computationally cheaper or comparable to storing all values as objects and casting when they need to be used.

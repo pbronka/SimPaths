@@ -60,6 +60,8 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 		return isFirstRun;
 	}
 
+	public Long runNumber = 1L;
+
 	public void setFirstRun(boolean firstRun) {
 		isFirstRun = firstRun;
 	}
@@ -347,6 +349,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 
 		//Display current country and start year in the console
 		System.out.println("Country: " + country + ". Running simulation from: " + startYear + " to " + endYear);
+		System.out.println("Current run number is: " + getEngine().getCurrentRunNumber());
 
 		// time check
 		elapsedTime = System.currentTimeMillis();

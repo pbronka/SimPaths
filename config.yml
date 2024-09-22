@@ -1,16 +1,20 @@
 # This file can be used to override defaults for multirun arguments.
 # These will be overridden by command-line arguments
 
-maxNumberOfRuns: 5
+maxNumberOfRuns: 20
 executeWithGui: false
-randomSeed: 12345
-startYear: 2018
-endYear: 2025
-popSize: 75000
+randomSeed: 123456789
+startYear: 2011
+endYear: 2050
+popSize: 50000
 
 # For arguments to pass to the SimPathsModel itself:
 # Current model defaults can be overridden by uncommenting/changing
 model_args:
+  shockPropagation: true
+  healthShock: false
+  partnershipShock: false
+  wageShock: false
 #    maxAge: 130
 #    fixTimeTrend: true
 #    timeTrendStopsIn: 2017
@@ -40,6 +44,7 @@ model_args:
 #    responsesToDisability: false
 #    minAgeForPoorHealth: 50
 #    responsesToRegion: false
+
 
 collector_args:
 #    calculateGiniCoefficients: false

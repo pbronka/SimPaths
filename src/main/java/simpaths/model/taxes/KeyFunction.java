@@ -42,6 +42,7 @@ public class KeyFunction {
 
         this();
 
+        /*
         // check initialisation data
         if (simYear<1900 || simYear>2200)
             throw new RuntimeException("Key function supplied odd simulation year");
@@ -69,7 +70,7 @@ public class KeyFunction {
             throw new RuntimeException("Key function supplied odd care provision indicator");
         if (originalIncomePerWeek<-40000.0 || originalIncomePerWeek>300000.0)
             throw new RuntimeException("Key function supplied odd original income per week");
-
+*/
         // set attributes
         this.simYear = simYear;
         this.priceYear = priceYear;

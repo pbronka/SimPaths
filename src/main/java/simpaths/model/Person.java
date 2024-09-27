@@ -882,7 +882,7 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
         dag++;
         boolean flagDies = considerMortality();
         dag_sq = dag*dag;
-        benefitUnit.clearStates(); // states object used to manage optimised decisions
+        if (this.benefitUnit != null) benefitUnit.clearStates(); // states object used to manage optimised decisions
         matchedWithBaseline = Indicator.False;
 
         if (flagDies) {
@@ -941,16 +941,19 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
     private boolean considerMortality() {
 
         boolean flagDies = false;
-        if (model.getProjectMortality()) {
+        if (this.benefitUnit != null) {
+            if (model.getProjectMortality()) {
+                if (Occupancy.Couple.equals(benefitUnit.getOccupancy()) || benefitUnit.getSize() == 1) {
+                    // exclude single parents with dependent children from death
 
-            if ( Occupancy.Couple.equals(benefitUnit.getOccupancy()) || benefitUnit.getSize() == 1 ) {
-                // exclude single parents with dependent children from death
-
-                double mortalityProbability = Parameters.getMortalityProbability(dgn, dag, model.getYear());
-                if (model.getEngine().getRandom().nextDouble() < mortalityProbability) {
-                    flagDies = true;
+                    double mortalityProbability = Parameters.getMortalityProbability(dgn, dag, model.getYear());
+                    if (model.getEngine().getRandom().nextDouble() < mortalityProbability) {
+                        flagDies = true;
+                    }
                 }
             }
+        } else {
+            flagDies = true;
         }
         if (dag > Parameters.maxAge) flagDies = true;
 
@@ -4146,10 +4149,9 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
 
     public void death() {
 
-        if (benefitUnit == null) {
-            throw new RuntimeException("simulated death of person without a benefit unit.");
+        if (benefitUnit != null) {
+            benefitUnit.removePerson(this);
         }
-        benefitUnit.removePerson(this);
         model.removePerson(this);
     }
 

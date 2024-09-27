@@ -12,7 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import simpaths.data.Parameters;
-import simpaths.model.SimPathsModel;
+import simpaths.model.*;
 import microsim.data.MultiKeyCoefficientMap;
 import microsim.data.excel.ExcelAssistant;
 import microsim.engine.MultiRun;
@@ -47,7 +47,7 @@ public class SimPathsMultiRun extends MultiRun {
 
 	private static Map<String, Object> collector_args;
 
-	public static String configFile = "config.yml";  // Default config file name
+	public static String configFile = "config_healthShock_feedbackOff.yml";  // Default config file name
 
 	/**
 	 *
@@ -358,6 +358,9 @@ public class SimPathsMultiRun extends MultiRun {
 		randomSeed++;
 		counter++;
 		System.out.println("Random seed " + randomSeed);
+		Person.personIdCounter = 1;
+		BenefitUnit.benefitUnitIdCounter = 1;
+		Household.householdIdCounter = 1;
 
 		if(counter < maxNumberOfRuns) {
 			return true;

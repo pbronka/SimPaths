@@ -11,8 +11,8 @@ popSize: 50000
 # For arguments to pass to the SimPathsModel itself:
 # Current model defaults can be overridden by uncommenting/changing
 model_args:
-  shockPropagation: false
-  healthShock: true
+  shockPropagation: true
+  healthShock: false
   partnershipShock: false
   wageShock: false
   projectMortality: true

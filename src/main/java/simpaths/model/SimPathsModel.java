@@ -1279,19 +1279,19 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 				for (Person p : persons) {
 					p.setShockedPerson(Indicator.False);
 				}
-				applyWageShock(Gender.Female, Cohort.FIFTY);
+				applyWageShock(Gender.Male, Cohort.THIRTY);
 				break;
 			case Health:
 				for (Person p : persons) {
 					p.setShockedPerson(Indicator.False);
 				}
-				applyHealthShock(Gender.Male, Cohort.FIFTY);
+				applyHealthShock(Gender.Male, Cohort.THIRTY);
 				break;
 			case Partnership:
 				for (Person p : persons) {
 					p.setShockedPerson(Indicator.False);
 				}
-				applyPartnerLeavingShock(Gender.Male, Cohort.FIFTY);
+				applyPartnerLeavingShock(Gender.Male, Cohort.THIRTY);
 				break;
 		}
 	}

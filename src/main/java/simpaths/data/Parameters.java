@@ -283,7 +283,7 @@ public class Parameters {
     public static final boolean systemOut = true;
 
     //Bootstrap all the regression coefficients if true, or only the female labour participation regressions when false
-    public static final boolean bootstrapAll = false;
+    public static final boolean bootstrapAll = true;
 
     //Scheduling
     public static final int MODEL_ORDERING = 0;

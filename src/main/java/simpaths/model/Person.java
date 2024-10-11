@@ -2298,6 +2298,8 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
         Dhe_c5_3_L1,
         Dhe_c5_4_L1,
         Dhe_c5_5_L1,
+        Dhe_c5_L1_Dag,
+        Dhe_c5_L1_Dag_sq,
         Dhe_Fair,
         Dhe_Good,
         Dhe_L1, 						//Health status lag(1)
@@ -2659,6 +2661,16 @@ public class Person implements EventListener, IDoubleSource, IIntSource, Weight,
             return (Dhe.VeryGood.equals(dhe_lag1)) ? 1.0 : 0.0;
         case Dhe_c5_5_L1:
             return (Dhe.Excellent.equals(dhe_lag1)) ? 1.0 : 0.0;
+        case Dhe_c5_L1_Dag:
+            if (dhe_lag1 != null && dhe_lag1.getValue() >= 0.) {
+                return dhe_lag1.getValue() * dag;
+            }
+            else return 0.;
+        case Dhe_c5_L1_Dag_sq:
+            if (dhe_lag1 != null && dhe_lag1.getValue() >= 0.) {
+                return dhe_lag1.getValue() * dag_sq;
+            }
+            else return 0.;
         case Dhm:
             return dhm;
         case Dhm_L1:

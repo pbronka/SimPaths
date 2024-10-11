@@ -1077,7 +1077,7 @@ public class Parameters {
             columnsLabourCovid19_SE = 1;
             columnsLabourCovid19_2a_processes = 1;
             columnsHealthH1a = 28;
-            columnsHealthH1b = 35;
+            columnsHealthH1b = 37;
             columnsHealthH2b = 29;
             columnsHealthHM1 = 31;
             columnsHealthHM2Males = 11;
@@ -1243,7 +1243,7 @@ public class Parameters {
 
         //Health
         coeffCovarianceHealthH1a = ExcelAssistant.loadCoefficientMap("input/reg_health.xlsx", countryString + "_H1a", 1, columnsHealthH1a);
-        coeffCovarianceHealthH1b = ExcelAssistant.loadCoefficientMap("input/reg_health.xlsx", countryString + "_H1b", 1, columnsHealthH1b);
+        coeffCovarianceHealthH1b = ExcelAssistant.loadCoefficientMap("input/reg_health.xlsx", countryString + "_H1b_int", 1, columnsHealthH1b);
         coeffCovarianceHealthH2b = ExcelAssistant.loadCoefficientMap("input/reg_health.xlsx", countryString + "_H2b", 1, columnsHealthH2b);
 
         //Social care

@@ -1,17 +1,16 @@
 package simpaths.model.decisions;
 
-import java.security.InvalidParameterException;
-import java.util.*;
-
 import simpaths.data.ManagerRegressions;
 import simpaths.data.Parameters;
 import simpaths.data.RegressionName;
-import simpaths.model.enums.*;
 import simpaths.model.BenefitUnit;
 import simpaths.model.Person;
 import simpaths.model.TaxEvaluation;
+import simpaths.model.enums.*;
 import simpaths.model.taxes.Match;
 import simpaths.model.taxes.Matches;
+
+import java.security.InvalidParameterException;
 
 import static simpaths.data.Parameters.asinh;
 
@@ -233,10 +232,6 @@ public class Expectations {
      */
     public void updateForDiscreteControls(double emp1Pr, double emp2Pr) {
 
-        // working variables
-        int stateIndexNextPeriod, stateIndexCurrPeriod;
-
-
         //********************************************************
         // update current period variables for discrete decisions
         //********************************************************
@@ -419,7 +414,7 @@ public class Expectations {
 
             // cohabitation (1 = cohabiting)
             if (ageYearsNextPeriod <= DecisionParams.MAX_AGE_COHABITATION) {
-                futures.updateCohabitation();
+               futures.updateCohabitation();
             }
 
             // dependent children

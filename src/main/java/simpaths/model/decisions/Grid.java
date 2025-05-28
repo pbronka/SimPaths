@@ -1,7 +1,6 @@
 package simpaths.model.decisions;
 
 import java.security.InvalidParameterException;
-import simpaths.model.decisions.DecisionParams;
 
 
 /**

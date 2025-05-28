@@ -32,6 +32,7 @@ public class DonorTaxUnitPolicy {
     @Column(name = "DONOR_KEY2") private Integer donorKey2;
     @Column(name = "DONOR_KEY3") private Integer donorKey3;
     @Column(name = "DONOR_KEY4") private Integer donorKey4;
+    @Column(name = "DONOR_KEY5") private Integer donorKey5;
 
 
     /**
@@ -140,6 +141,8 @@ public class DonorTaxUnitPolicy {
             return donorKey3;
         } else if (regime==4) {
             return donorKey4;
+        } else if (regime==5) {
+            return donorKey5;
         } else {
             throw new RuntimeException("request to get unrecognised donor key regime");
         }
@@ -155,6 +158,8 @@ public class DonorTaxUnitPolicy {
             donorKey3 = key;
         } else if (regime==4) {
             donorKey4 = key;
+        } else if (regime==5) {
+            donorKey5 = key;
         } else {
             throw new RuntimeException("request to set unrecognised donor key regime");
         }

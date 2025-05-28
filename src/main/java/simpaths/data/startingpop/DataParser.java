@@ -152,7 +152,7 @@ public class DataParser {
 
 				//Labour Market Economic Status
 				+ "ALTER TABLE " + personTable + " ADD activity_status VARCHAR_IGNORECASE;"
-				+ "UPDATE " + personTable + " SET les_c4 = 3 WHERE les_c4 = 1 AND CAST(potential_earnings_hourly AS FLOAT)<0.01;"
+				+ "UPDATE " + personTable + " SET les_c4 = 3 WHERE les_c4 = 1 AND CAST(obs_earnings_hourly AS FLOAT)<0.01;"
 				+ "UPDATE " + personTable + " SET activity_status = 'EmployedOrSelfEmployed' WHERE les_c4 = 1;"
 				+ "UPDATE " + personTable + " SET activity_status = 'Student' WHERE les_c4 = 2;"
 				+ "UPDATE " + personTable + " SET activity_status = 'NotEmployed' WHERE les_c4 = 3;"
@@ -160,19 +160,22 @@ public class DataParser {
 				+ "ALTER TABLE " + personTable + " DROP COLUMN les_c4;"
 				+ "ALTER TABLE " + personTable + " ALTER COLUMN activity_status RENAME TO les_c4;"
 
+				//Lag(1) of les_c4
+				+ "ALTER TABLE " + personTable + " ADD activity_status VARCHAR_IGNORECASE;"
+				+ "UPDATE " + personTable + " SET l1_les_c4 = 3 WHERE l1_les_c4 = 1 AND CAST(l1_obs_earnings_hourly AS FLOAT)<0.01;"
+				+ "UPDATE " + personTable + " SET activity_status = 'EmployedOrSelfEmployed' WHERE l1_les_c4 = 1;"
+				+ "UPDATE " + personTable + " SET activity_status = 'Student' WHERE l1_les_c4 = 2;"
+				+ "UPDATE " + personTable + " SET activity_status = 'NotEmployed' WHERE l1_les_c4 = 3;"
+				+ "UPDATE " + personTable + " SET activity_status = 'Retired' WHERE l1_les_c4 = 4;"
+				+ "ALTER TABLE " + personTable + " DROP COLUMN l1_les_c4;"
+				+ "ALTER TABLE " + personTable + " ALTER COLUMN activity_status RENAME TO les_c4_lag1;"
+
 				//DEMOGRAPHIC: Long-term sick or disabled (to be used with Indicator enum when defined in Person class)
 				+ "ALTER TABLE " + personTable + " ADD sick_longterm VARCHAR_IGNORECASE;"
 				+ "UPDATE " + personTable + " SET sick_longterm = 'False' WHERE dlltsd = 0;"
 				+ "UPDATE " + personTable + " SET sick_longterm = 'True' WHERE dlltsd = 1;"
 				+ "ALTER TABLE " + personTable + " DROP COLUMN dlltsd;"
 				+ "ALTER TABLE " + personTable + " ALTER COLUMN sick_longterm RENAME TO dlltsd;"
-
-				//DEMOGRAPHIC: Need social care (to be used with Indicator enum when defined in Person class)
-				+ "ALTER TABLE " + personTable + " ADD need_care VARCHAR_IGNORECASE;"
-				+ "UPDATE " + personTable + " SET need_care = 'False' WHERE need_socare = 0;"
-				+ "UPDATE " + personTable + " SET need_care = 'True' WHERE need_socare = 1;"
-				+ "ALTER TABLE " + personTable + " DROP COLUMN need_socare;"
-				+ "ALTER TABLE " + personTable + " ALTER COLUMN need_care RENAME TO need_socare;"
 
 				//SYSTEM: Year left education (to be used with Indicator enum when defined in Person class)
 				+ "ALTER TABLE " + personTable + " ADD education_left VARCHAR_IGNORECASE;"
@@ -195,15 +198,6 @@ public class DataParser {
 				+ "ALTER TABLE " + personTable + " DROP COLUMN dhh_owned;"
 				+ "ALTER TABLE " + personTable + " ALTER COLUMN dhh_owned_add RENAME TO dhh_owned;"
 
-				//Social care
-				+ "ALTER TABLE " + personTable + " ADD socare_provided_to VARCHAR_IGNORECASE;"
-				+ "UPDATE " + personTable + " SET socare_provided_to = 'None' WHERE careWho = 0;"
-				+ "UPDATE " + personTable + " SET socare_provided_to = 'OnlyPartner' WHERE careWho = 1;"
-				+ "UPDATE " + personTable + " SET socare_provided_to = 'PartnerAndOther' WHERE careWho = 2;"
-				+ "UPDATE " + personTable + " SET socare_provided_to = 'OnlyOther' WHERE careWho = 3;"
-				+ "ALTER TABLE " + personTable + " DROP COLUMN careWho;"
-				+ "ALTER TABLE " + personTable + " ALTER COLUMN aidhrs RENAME TO socare_provided_hrs;"
-
 				//SYSTEM : Year
 				+ "ALTER TABLE " + personTable + " ALTER COLUMN stm RENAME TO system_year;"
 
@@ -212,8 +206,11 @@ public class DataParser {
 
 				+ "ALTER TABLE " + personTable + " ALTER COLUMN lhw RENAME TO " + Parameters.HOURS_WORKED_WEEKLY + ";"
 				+ "ALTER TABLE " + personTable + " ADD work_sector VARCHAR_IGNORECASE DEFAULT 'Private_Employee';"		//Here we assume by default that people are employed - this is because the MultiKeyMaps holding households have work_sector as a key, and cannot handle null values for work_sector. TODO: Need to check that this assumption is OK.
+				+ "ALTER TABLE " + personTable + " ALTER COLUMN idmother BIGINT;"
 				+ "UPDATE " + personTable + " SET idmother = null WHERE idmother = -9;"
+				+ "ALTER TABLE " + personTable + " ALTER COLUMN idfather BIGINT;"
 				+ "UPDATE " + personTable + " SET idfather = null WHERE idfather = -9;"
+				+ "UPDATE " + personTable + " SET liwwh = null WHERE liwwh = -9;"
 
 				//Rename idbenefitunit to BU_ID
 				+ "ALTER TABLE " + personTable + " ALTER COLUMN idbenefitunit RENAME TO buid;"
@@ -274,11 +271,6 @@ public class DataParser {
 				+ "UPDATE " + benefitUnitTable + " SET dhh_owned_add = 'True' WHERE dhh_owned = 1;"
 				+ "ALTER TABLE " + benefitUnitTable + " DROP COLUMN dhh_owned;"
 				+ "ALTER TABLE " + benefitUnitTable + " ALTER COLUMN dhh_owned_add RENAME TO dhh_owned;"
-
-				//WEALTH
-				+ "UPDATE " + benefitUnitTable + " SET liquid_wealth = 0.0 WHERE liquid_wealth = -9.0;"
-				+ "UPDATE " + benefitUnitTable + " SET tot_pen = 0.0 WHERE tot_pen = -9.0;"
-				+ "UPDATE " + benefitUnitTable + " SET nvmhome = 0.0 WHERE nvmhome = -9.0;"
 
 				//Add panel entity key
 				+ "ALTER TABLE " + benefitUnitTable + " ALTER COLUMN idbenefitunit RENAME TO id;"

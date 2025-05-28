@@ -42,7 +42,7 @@ import simpaths.model.taxes.database.TaxDonorDataParser;
 public class SimPathsStart implements ExperimentBuilder {
 
 	// default simulation parameters
-	private static Country country = Country.UK;
+	private static Country country = Country.IT;
 	private static int startYear = Parameters.getMaxStartYear();
 
 	private static boolean showGui = true;  // Show GUI by default
@@ -86,8 +86,7 @@ public class SimPathsStart implements ExperimentBuilder {
 		if (lastDatabaseCountryAndYear.keySet().stream().anyMatch(key -> key.toString().equals("MultiKey[IT]"))) {
 			country = Country.IT;
 		} else {
-			country = Country.UK;
-//			country = Country.IT;
+			throw new IllegalArgumentException("Country not recognised. Restart the simulation and choose one of the available countries.");
 		}
 		String valueYear = lastDatabaseCountryAndYear.getValue(country.toString()).toString();
 		startYear = Integer.parseInt(valueYear);
@@ -464,7 +463,6 @@ public class SimPathsStart implements ExperimentBuilder {
         // the country if possible.  Could this be done by making the setCountry method ineffective
         // when the country has been set by the user in the dialog box in the start class?
       	country = cbCountry.getCountryEnum();	 //Temporarily commented out to disallow choice of the country
-        //country = Country.IT;
 		startYear = cbStartYear.getYear();
 
 		//Save the last selected country and year to Excel to use in the model if GUI launched straight away

@@ -44,7 +44,7 @@ public class DonorPerson {
     public Integer getAge() { return this.age; }
     public int getHoursWorkedWeekly() { return this.hoursWorkedWeekly; }
     public int getDlltsd() { return this.dlltsd; }
-    public int getCarer() { return this.carer; }
+    public int getCarer() { return 0; }
     public double getWeight() { return this.weight; }
     public Set<DonorPersonPolicy> getPolicies() { return policies; }
     public DonorPersonPolicy getPolicy(int startYear) {

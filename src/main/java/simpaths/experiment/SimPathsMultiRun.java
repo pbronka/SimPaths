@@ -68,7 +68,7 @@ public class SimPathsMultiRun extends MultiRun {
 		if (lastDatabaseCountryAndYear.keySet().stream().anyMatch(key -> key.toString().equals("MultiKey[IT]"))) {
 			countryString = "Italy";
 		} else {
-			countryString = "United Kingdom";
+			countryString = "Italy";
 		}
 		country = Country.getCountryFromNameString(countryString);
 		String valueYear = lastDatabaseCountryAndYear.getValue(country.toString()).toString();

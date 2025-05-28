@@ -3,9 +3,7 @@ package simpaths.model;
 import microsim.engine.SimulationEngine;
 import simpaths.data.IEvaluation;
 import simpaths.data.Parameters;
-import simpaths.model.enums.Dcpst;
 import simpaths.model.enums.TargetShares;
-import simpaths.model.enums.TimeSeriesVariable;
 
 import java.util.Set;
 
@@ -51,10 +49,9 @@ public class PartnershipAlignment implements IEvaluation {
     public double evaluate(double[] args) {
 
         model.clearPersonsToMatch();
-        double newAlignAdjustment = args[0] + Parameters.getTimeSeriesValue(model.getYear(), TimeSeriesVariable.PartnershipAdjustment);
         persons.parallelStream()
                 .filter(person -> person.getDag() >= Parameters.MIN_AGE_COHABITATION)
-                .forEach(person -> person.cohabitation(newAlignAdjustment));
+                .forEach(person -> person.cohabitation(args[0]));
 
         // "Fake" union matching (not modifying household structure) here
         model.unionMatching(true);
@@ -80,6 +77,7 @@ public class PartnershipAlignment implements IEvaluation {
                 .count();
 
         long numPersonsPartnered = persons.stream()
+                .filter(person -> person.getDag() >= Parameters.MIN_AGE_COHABITATION)
                 .filter(person -> (person.getTestPartner() ||
                         (person.getPartner()!=null &&
                                 !person.getLeavePartner() && !person.getPartner().getLeavePartner())))

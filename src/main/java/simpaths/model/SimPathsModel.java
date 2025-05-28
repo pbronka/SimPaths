@@ -16,6 +16,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityTransaction;
 import jakarta.persistence.Persistence;
 import jakarta.persistence.Transient;
+import microsim.data.MultiKeyCoefficientMap;
 import org.apache.commons.lang3.ArrayUtils;
 import org.jetbrains.annotations.NotNull;
 import simpaths.data.IEvaluation;
@@ -27,8 +28,6 @@ import simpaths.model.decisions.DecisionParams;
 import microsim.alignment.outcome.ResamplingAlignment;
 import microsim.event.*;
 import microsim.event.EventListener;
-import org.apache.commons.collections4.keyvalue.MultiKey;
-import org.apache.commons.collections4.MapIterator;
 import org.apache.commons.collections4.map.LinkedMap;
 import org.apache.commons.collections4.map.MultiKeyMap;
 import org.apache.commons.lang3.tuple.Triple;
@@ -39,13 +38,9 @@ import org.apache.commons.lang3.time.StopWatch;
 // import JAS-mine packages
 import microsim.alignment.outcome.AlignmentOutcomeClosure;
 import microsim.annotation.GUIparameter;
-import microsim.data.MultiKeyCoefficientMap;
 import microsim.data.db.DatabaseUtils;
 import microsim.engine.AbstractSimulationManager;
 import microsim.engine.SimulationEngine;
-import microsim.matching.IterativeSimpleMatching;
-import microsim.matching.MatchingClosure;
-import microsim.matching.MatchingScoreClosure;
 
 // import LABOURsim packages
 import simpaths.data.Parameters;
@@ -55,7 +50,6 @@ import simpaths.model.taxes.DonorTaxUnit;
 import simpaths.model.taxes.DonorTaxUnitPolicy;
 import simpaths.model.taxes.Match;
 import simpaths.model.taxes.Matches;
-import simpaths.model.taxes.database.DatabaseExtension;
 import simpaths.model.taxes.database.TaxDonorDataParser;
 
 
@@ -80,7 +74,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
     private static Logger log = Logger.getLogger(SimPathsModel.class);
 
     //@GUIparameter(description = "Country to be simulated")
-    private Country country; // = Country.UK;
+    private Country country;
 
     private boolean flagUpdateCountry = false;  // set to true if switch between countries
 
@@ -88,21 +82,21 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
     private Integer popSize = 170000;
 
     @GUIparameter(description = "Simulation first year [valid range 2011-2019]")
-    private Integer startYear = 2011;
+    private Integer startYear = 2019;
 
     @GUIparameter(description = "Simulation ends at year")
-    private Integer endYear = 2026;
+    private Integer endYear = 2040;
 
     @GUIparameter(description = "Maximum simulated age")
-    private Integer maxAge = 130;
+    private Integer maxAge = 81;
 
     //@GUIparameter(description = "Fix year used in the regressions to one specified below")
     private boolean fixTimeTrend = true;
 
     @GUIparameter(description = "Fix year used in the regressions to")
-    private Integer timeTrendStopsIn = 2021;
+    private Integer timeTrendStopsIn = 2022;
 
-    private Integer timeTrendStopsInMonetaryProcesses = 2021; // For monetary processes, time trend always continues to 2017 (last observed year in the estimation sample) and then values are grown at the growth rate read from Excel
+    private Integer timeTrendStopsInMonetaryProcesses = 2022; // For monetary processes, time trend always continues to 2017 (last observed year in the estimation sample) and then values are grown at the growth rate read from Excel
 
 //	@GUIparameter(description="Age at which people in initial population who are not employed are forced to retire")
 //	private Integer ageNonWorkPeopleRetire = 65;	//The problem is that it is difficult to find donor benefitUnits for non-zero labour supply for older people who are in the Nonwork category but not Retired.  They should, in theory, still enter the Labour Market Module, but if we cannot find donor benefitUnits, how should we proceed?  We avoid this problem by defining that people over the age specified here are retired off if they have activity_status equal to Nonwork.
@@ -163,15 +157,17 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
     private boolean alignPopulation = true; //TODO: routine fails to replicate results for minor variations between simulations
 
     //	@GUIparameter(description = "If checked, will align fertility")
-    private boolean alignFertility = false;
+    private boolean alignFertility = true;
+    private boolean alignRetirement = false;
 
+    private boolean alignDisability = true;
     private boolean alignEducation = false; //Set to true to align level of education
 
     private boolean alignInSchool = false; //Set to true to align share of students among 16-29 age group
 
-    private boolean alignCohabitation = false; //Set to true to align share of couples (cohabiting individuals)
+    private boolean alignCohabitation = true; //Set to true to align share of couples (cohabiting individuals)
 
-    private boolean alignEmployment = false; //Set to true to align employment share
+    private boolean alignEmployment = true; //Set to true to align employment share
 
     public boolean addRegressionStochasticComponent = true; //If set to true, and regression contains ResStanDev variable, will evaluate the regression score including stochastic part, and omits the stochastic component otherwise.
 
@@ -187,10 +183,10 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
     public boolean labourMarketCovid19On = false; // Set to true to use reduced-form labour market module for years affected by Covid-19 (2020, 2021)
 
     @GUIparameter(description = "Simulate formal childcare costs")
-    public boolean projectFormalChildcare = true;
+    public boolean projectFormalChildcare = false;
 
     @GUIparameter(description = "Average over donor pool when imputing transfer payments")
-    public boolean donorPoolAveraging = true;
+    public boolean donorPoolAveraging = false;
 
     private int ordering = Parameters.MODEL_ORDERING;    //Used in Scheduling of model events.  Schedule model events at the same time as the collector and observer events, but a lower order, so will be fired before the collector and observer have updated.
 
@@ -240,11 +236,11 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
     EventGroup yearlySchedule = new EventGroup();
 
     @GUIparameter(description = "tick to project social care")
-    private boolean projectSocialCare = true;
+    private boolean projectSocialCare = false;
 
-    private boolean flagSuppressChildcareCosts = false;
+    private boolean flagSuppressChildcareCosts = true;
 
-    private boolean flagSuppressSocialCareCosts = false;
+    private boolean flagSuppressSocialCareCosts = true;
 
     @GUIparameter(description = "tick to enable intertemporal optimised consumption and labour decisions")
     private boolean enableIntertemporalOptimisations = false;
@@ -293,6 +289,19 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 
     @GUIparameter(description = "whether to include geographic region in state space for IO behavioural solutions")
     private boolean responsesToRegion = false;
+
+    // Controls for macro shocks
+    @GUIparameter(description = "macro shock: population")
+    private MacroScenarioPopulation macroShockPopulation = MacroScenarioPopulation.Baseline;
+
+    @GUIparameter(description = "macro shock: productivity")
+    private MacroScenarioProductivity macroShockProductivity = MacroScenarioProductivity.Baseline;
+
+    @GUIparameter(description = "macro shock: green policy")
+    private MacroScenarioGreenPolicy macroShockGreenPolicy = MacroScenarioGreenPolicy.No;
+
+    @GUIparameter(description = "macro shocks: on")
+    private boolean macroShocksOn = false;
 
     RandomGenerator cohabitInnov;
     Random initialiseInnov1;
@@ -348,7 +357,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
         Parameters.loadParameters(country, maxAge, enableIntertemporalOptimisations, projectFormalChildcare,
                 projectSocialCare, donorPoolAveraging, fixTimeTrend, flagDefaultToTimeSeriesAverages, saveImperfectTaxDBMatches,
                 timeTrendStopsIn, startYear, endYear, interestRateInnov, disposableIncomeFromLabourInnov, flagSuppressChildcareCosts,
-                flagSuppressSocialCareCosts);
+                flagSuppressSocialCareCosts, macroShockPopulation, macroShockProductivity, macroShockGreenPolicy, macroShocksOn);
         if (enableIntertemporalOptimisations) {
 
             alignEmployment = false;
@@ -356,8 +365,6 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
                     responsesToHealth, minAgeForPoorHealth, responsesToDisability, responsesToRegion, responsesToEducation,
                     responsesToPension, responsesToLowWageOffer, responsesToRetirement, saveBehaviour,
                     readGrid, getEngine().getCurrentExperiment().getOutputFolder(), startYear, endYear);
-            //DecisionTests.compareGrids();
-            //DatabaseExtension.extendInputData();
         }
         long elapsedTime1 = System.currentTimeMillis();
         System.out.println("Time to load parameters: " + (elapsedTime1 - elapsedTime0)/1000. + " seconds.");
@@ -450,13 +457,8 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 
         addEventToAllYears(Processes.StartYear);
 
-        if (enableIntertemporalOptimisations)
-            firstYearSched.addEvent(this, Processes.RationalOptimisation);
-
         addEventToAllYears(Processes.UpdateParameters);
         addEventToAllYears(Processes.GarbageCollection);
-        if (enableIntertemporalOptimisations)
-            yearlySchedule.addCollectionEvent(benefitUnits, BenefitUnit.Processes.UpdateWealth);
         addCollectionEventToAllYears(benefitUnits, BenefitUnit.Processes.Update);
         addCollectionEventToAllYears(persons, Person.Processes.Update);
 
@@ -468,28 +470,27 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
         //yearlySchedule.addEvent(this, Processes.CheckForEmptyHouseholds);
 
         // Check whether persons have reached retirement Age
-        addCollectionEventToAllYears(persons, Person.Processes.ConsiderRetirement, false);
+        yearlySchedule.addEvent(this, Processes.RetirementAlignment);
+        yearlySchedule.addCollectionEvent(persons, Person.Processes.ConsiderRetirement, false);
 
         // EDUCATION MODULE
         // Check In School - check whether still in education, and if leaving school, reset Education Level
         yearlySchedule.addCollectionEvent(persons, Person.Processes.InSchool);
 
         // In School alignment
-        addEventToAllYears(Processes.InSchoolAlignment);
-        addCollectionEventToAllYears(persons, Person.Processes.LeavingSchool);
+        yearlySchedule.addEvent(this, Processes.InSchoolAlignment);
+        yearlySchedule.addCollectionEvent(persons, Person.Processes.LeavingSchool);
 
         // Align the level of education if required
-        addEventToAllYears(Processes.EducationLevelAlignment);
+        yearlySchedule.addEvent(this, Processes.EducationLevelAlignment);
 
         // Homeownership status
         yearlySchedule.addCollectionEvent(benefitUnits, BenefitUnit.Processes.Homeownership);
 
         // HEALTH MODULE
         // Update Health - determine health (continuous) based on regression models: done here because health depends on education
+        yearlySchedule.addEvent(this, Processes.DisabilityAlignment);
         yearlySchedule.addCollectionEvent(persons, Person.Processes.Health);
-
-        // Update mental health - determine (continuous) mental health level based on regression models
-        yearlySchedule.addCollectionEvent(persons, Person.Processes.HealthMentalHM1); //Step 1 of mental health
 
         // HOUSEHOLD COMPOSITION MODULE: Decide whether to enter into a union (marry / cohabit), and then perform union matching (marriage) between a male and female
 
@@ -512,41 +513,16 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
         yearlySchedule.addCollectionEvent(persons, Person.Processes.GiveBirth, false);        //Cannot use read-only collection schedule as newborn children cause concurrent modification exception.  Need to specify false in last argument of Collection event.
 
         // TIME USE MODULE
-        // Social care
-        if (projectSocialCare) {
-            addCollectionEventToAllYears(persons, Person.Processes.SocialCareReceipt);
-            addCollectionEventToAllYears(persons, Person.Processes.SocialCareProvision);
-            //yearlySchedule.addEvent(this, Processes.SocialCareMarketClearing);
-        }
-
-        // Unemployment
-        addCollectionEventToAllYears(persons, Person.Processes.Unemployment);
-
-        // update references for optimising behaviour
-        // needs to be positioned after all decision states for the current period have been simulated
-        if (enableIntertemporalOptimisations)
-            addCollectionEventToAllYears(benefitUnits, BenefitUnit.Processes.UpdateStates, false);
-
         addEventToAllYears(Processes.LabourMarketAndIncomeUpdate);
 
         // Assign benefit status to individuals in benefit units, from donors. Based on donor tax unit status.
         addCollectionEventToAllYears(benefitUnits, BenefitUnit.Processes.ReceivesBenefits);
 
         // CONSUMPTION AND SAVINGS MODULE
-        if (enableIntertemporalOptimisations)
-            addCollectionEventToAllYears(benefitUnits, BenefitUnit.Processes.ProjectDiscretionaryConsumption);
         addCollectionEventToAllYears(persons, Person.Processes.ProjectEquivConsumption);
 
         // equivalised disposable income
         addCollectionEventToAllYears(benefitUnits, BenefitUnit.Processes.CalculateChangeInEDI);
-
-        // MENTAL HEALTH MODULE
-        // Update mental health - determine (continuous) mental health level based on regression models + caseness
-        addCollectionEventToAllYears(persons, Person.Processes.HealthMentalHM1); //Step 1 of mental health
-        // modify the outcome of Step 1 depending on individual's exposures + caseness
-        addCollectionEventToAllYears(persons, Person.Processes.HealthMentalHM2); //Step 2 of mental health.
-        // update case-based measure
-        addCollectionEventToAllYears(persons, Person.Processes.HealthMentalHM1HM2Cases);
 
         // mortality (migration) and population alignment at year's end
         addCollectionEventToAllYears(persons, Person.Processes.ConsiderMortality);
@@ -555,6 +531,8 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
         // END OF YEAR PROCESSES
         addEventToAllYears(Processes.CheckForImperfectTaxDBMatches);
         addEventToAllYears(tests, Tests.Processes.RunTests); //Run tests
+        addCollectionEventToAllYears(persons, Person.Processes.UpdateOutputVariables); // Update idPartner, dhhtp_c4
+        addCollectionEventToAllYears(benefitUnits, BenefitUnit.Processes.UpdateOutputVariables); // Update dhhtp_c4
         addEventToAllYears(Processes.EndYear);
 
         // UPDATE YEAR
@@ -566,7 +544,6 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 
         // at termination of simulation
         int orderEarlier = -1;            //Set less than order so that this is called before the yearlySchedule in the endYear.
-        getEngine().getEventQueue().scheduleOnce(new SingleTargetEvent(this, Processes.CleanUp), endYear+1, orderEarlier);
         SystemEvent end = new SystemEvent(SimulationEngine.getInstance(), SystemEventType.End);
         getEngine().getEventQueue().scheduleOnce(end, endYear+1, orderEarlier);
 
@@ -734,6 +711,8 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
         FertilityAlignment,
         PopulationAlignment,
         CohabitationAlignment,
+        RetirementAlignment,
+        DisabilityAlignment,
         // HealthAlignment,
         InSchoolAlignment,
         EducationLevelAlignment,
@@ -746,7 +725,6 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
         CheckForEmptyBenefitUnits,
         GarbageCollection,
         CheckForImperfectTaxDBMatches,
-        CleanUp,
     }
 
     @Override
@@ -759,7 +737,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
                 if (commentsOn) log.info("Starting year " + year);
             }
             case EndYear -> {
-
+                //System.out.println("Model assigned " + lowEd + "low education levels, " + medEd + "medium, " + highEd + "high ed");
                 long elapsedTime1 = System.currentTimeMillis();
                 double timerForYear = (elapsedTime1 - elapsedTime0)/1000.0;
                 System.out.println("Finished year " + year + " (in " + timerForYear + " seconds)");
@@ -792,15 +770,25 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
                 }
                 clearPersonsToMatch();
             }
+            case RetirementAlignment -> {
+                if (alignRetirement) {
+                    retirementAlignment();
+                    if (commentsOn) log.info("Retirement alignment complete.");
+                }
+            }
+            case DisabilityAlignment -> {
+                if (alignDisability) {
+                    disabilityAlignment();
+                    if (commentsOn) log.info("Disability alignment complete.");
+                }
+            }
 //			case HealthAlignment -> {
 //				healthAlignment();
 //				if (commentsOn) log.info("Health alignment complete.");
 //			}
             case UnionMatching -> {
 
-                if(UnionMatchingMethod.SBAM.equals(unionMatchingMethod)) {
-                    unionMatchingSBAM();
-                } else if (UnionMatchingMethod.Parametric.equals(unionMatchingMethod)) {
+                if (UnionMatchingMethod.Parametric.equals(unionMatchingMethod)) {
                     unionMatching(false);
                 } else {
                     unionMatching(false);
@@ -867,11 +855,6 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
                 if (Parameters.saveImperfectTaxDBMatches) {
                     screenForImperfectTaxDbMatches();
                 }
-            }
-            case CleanUp -> {
-
-                if (Parameters.saveImperfectTaxDBMatches)
-                    DatabaseExtension.extendInputData(getEngine().getCurrentExperiment().getOutputFolder());
             }
             default -> {
                 throw new RuntimeException("failed to identify process type in SimPathsModel.onEvent");
@@ -1388,391 +1371,6 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 
     /**
      *
-     * PROCESS - HEALTH ALIGNMENT OF SIMULATED POPULATION
-     *
-     */
-    /*
-    //TODO: The health alignment might have to be handled differently with continuous health
-    private void healthAlignment() {
-
-        for (Gender gender: Gender.values()) {
-            for (int age = Parameters.MIN_AGE_TO_ALIGN_HEALTH; age <= Parameters.getFixedRetireAge(year, gender); age++) {
-
-                //Target proportion
-                double proportionWithBadHealth = ((Number)Parameters.getProbSick().get(gender, age)).doubleValue();
-
-                //People to be aligned in gender-age specific cell
-                Set<Person> personsWithGenderAndAge = new LinkedHashSet<Person>();
-                for (Region region: Parameters.getCountryRegions()) {
-                    personsWithGenderAndAge.addAll(personsByGenderRegionAndAge.get(gender,  region,  age));
-                }
-
-                //Align
-                new ResamplingWeightedAlignment<Person>().align(
-                        personsWithGenderAndAge,
-                        null,
-                        new AlignmentOutcomeClosure<Person>() {
-
-                            @Override
-                            public boolean getOutcome(Person agent) {
-                                return agent.getDhe() == 1.; //TODO: Check the new continuous health status
-                            }
-
-                            @Override
-                            public void resample(Person agent) {
-                                //Swap health status
-                                if (agent.getDhe() > 1.) {
-                                    agent.setDhe(1.);
-                                } else {
-                                    agent.setDhe(3.); //TODO: What numerical value should correspond to "good" health?
-                                }
-                            }
-
-                        },
-                        proportionWithBadHealth
-                );
-            }
-        }
-    }
-    */
-
-    /*
-     * unionMatchingSBAM implements a marriage matching method presented by Stephensen 2013.
-     */
-
-    int partnershipsCreated = 0;
-    int malesUnmatched = 0;
-    int femalesUnmatched = 0;
-
-    @SuppressWarnings("unchecked")
-    private void unionMatchingSBAM() {
-
-        int malesToBePartnered = 0;
-        int femalesToBePartnered = 0;
-        partnershipsCreated = 0;
-
-        for (Person p : persons) {
-            if (p.isToBePartnered() == true) {
-                if (p.getDgn().equals(Gender.Male)) malesToBePartnered++;
-                else if (p.getDgn().equals(Gender.Female)) femalesToBePartnered++;
-            }
-        }
-
-//		System.out.println("Number of males to be partnered is " + malesToBePartnered + " , number of females to be partnered is " + femalesToBePartnered);
-
-        /* If adjustZeroEntries = true, zero frequencies are set to a very small number (1.e-6) for combinations of types that theoretically could occur. This are unlikely to result in any actual matches,
-         * as they are set to nearest integer, but allow the matches we are interested in to be adjusted. (One possibility is to introduce matching with probability equal to the frequency for such combinations).
-         */
-        boolean adjustZeroEntries = true;
-
-        //1. Load distribution of marriages observed in Excel using ExcelLoader from marriageTypes2.xlsx file. Store a copy in marriageTypesToAdjust, which is
-        // a MultiKeyCoefficientMap - it has 2 string keys that identify a value. 1st key is person type, 2nd key is partner type, value is the number of marriages between these types
-        // observed in the data.
-        MultiKeyCoefficientMap marriageTypesToAdjustMap = Parameters.getMarriageTypesFrequency().clone(); //Clone the original map loaded from Excel to adjust frequencies on a copy
-
-        //Create a set of keys on which the types are defined: currently Gender, Region, Education, Age Group
-        Set<MultiKey> keysMultiKeySet = new LinkedHashSet<MultiKey>();
-        Set<String> keysStringSet = new LinkedHashSet<String>();
-        for(Gender gender : Gender.values()) {
-
-            for(Region region : Parameters.getCountryRegions()) {
-
-                Set<Person> tmpPersonsSet = new LinkedHashSet<Person>();
-                tmpPersonsSet.addAll(personsToMatch.get(gender).get(region)); //Using currently defined process for cohabitation, add all people who want to match to a set
-
-                //The set of people who want to match can be further divided based on observables, e.g. we include Education. This must match the Excel file with frequencies, also in order of variables
-                for (Education education : Education.values()) {
-
-                    for(int ageGroup = 0; ageGroup <= 11; ageGroup++) {
-
-                        Set<Person> tmpPersonsSet2 = new LinkedHashSet<Person>(); //Add to this set people from tmpPersonsSet selected on further observables
-                        String tmpKeyString = gender + " " + region + " " + education + " " + ageGroup; //MultiKey defined above, but for most methods we use a composite String key instead as MultiKeyMap has a limit of keys
-                        for (Person person : tmpPersonsSet) {
-
-                            if (person.getDeh_c3().equals(education) && person.getAgeGroup() == ageGroup) tmpPersonsSet2.add(person); //If education level matches add person to the set
-                        }
-
-                        personsToMatch2.put(tmpKeyString, tmpPersonsSet2); //Add a key and set of people to set of persons to match. Each key corresponds to a set of people of certain Gender, Region, and Education who want to match
-
-                        //Now add the number of people to match for gender, region, education as target
-                        double tmpTargetDouble = personsToMatch2.get(tmpKeyString).size();
-
-                        //Create a set containing row keys of marriageTypesToAdjust:
-                        Set<String> tmpKeysStringSet = new LinkedHashSet<String>();
-                        MapIterator frequenciesIterator = marriageTypesToAdjustMap.mapIterator();
-                        while (frequenciesIterator.hasNext()) {
-
-                            frequenciesIterator.next();
-                            MultiKey tmpKeyMultiKey = (MultiKey) frequenciesIterator.getKey();
-                            String key0String = tmpKeyMultiKey.getKey(0).toString();
-                            tmpKeysStringSet.add(key0String); //The only types not in the set should be those that don't have any matches in the data
-                        }
-
-                        if(tmpKeysStringSet.contains(tmpKeyString)) { //Check if the target is contained in frequencies from the data - if not, 0 entries cannot be adjusted anyway
-
-                            marriageTargetsByKey.put(tmpKeyString, tmpTargetDouble); //Update marriageTargetByKey
-                            MultiKey tmpKeyMultiKey = new MultiKey(gender, region, education, ageGroup);
-                            keysMultiKeySet.add(tmpKeyMultiKey); //Add MultiKey to set of keys
-                            keysStringSet.add(tmpKeyString);
-                        }
-                    }
-                }
-            }
-        }
-
-        //For sparse matrix with only few positive entries, convergence is not very good. One way to deal with it is to use very small numbers instead of 0 for matches that
-        //theoretically could occur? (i.e. no same sex matches, and no cross-region matches) but were not observed in the data.
-        if(adjustZeroEntries) {
-
-            for (MultiKey key1 : keysMultiKeySet) { //For each row in the frequency matrix
-
-                Gender gender1 = (Gender) key1.getKey(0);
-                Region region1 = (Region) key1.getKey(1);
-                Education education1 = (Education) key1.getKey(2);
-                int ageGroup1 = (int) key1.getKey(3);
-                String key1String = gender1 + " " + region1 + " " + education1 + " " + ageGroup1;
-                // System.out.println();
-                for(MultiKey key2 : keysMultiKeySet) { //For each column
-
-                    Gender gender2 = (Gender) key2.getKey(0);
-                    Region region2 = (Region) key2.getKey(1);
-                    Education education2 = (Education) key2.getKey(2);
-                    int ageGroup2 = (int) key2.getKey(3);
-                    String key2String = gender2 + " " + region2 + " " + education2 + " " + ageGroup2;
-                    if(marriageTypesToAdjustMap.get(key1String, key2String) != null) { //Value present, do nothing
-
-                    } else if(!key1String.equals(key2String))  { //Null value, if not the same type, set to small number
-
-                        marriageTypesToAdjustMap.put(key1String, key2String, 1.e-6);
-                    }
-                    //else {
-                    //	marriageTypesToAdjust.put(key1String, key2String, 0.); //Same sex and cross-region matches to have 0 frequency -> this is now handled in the matching closure, by not matching such couples
-                    //}
-                    // System.out.print(marriageTypesToAdjust.get(key1String, key2String) + " ");
-                }
-            }
-        }
-
-        //Iterate as on a matrix until the cumulative difference between frequencies in marriageTypesToAdjust and the targets from marriageTargetsByKey is smaller than the specified precision:
-        int tmpCountInt = 0;
-        double errorDouble = Double.MAX_VALUE;
-        double precisionDouble = 1.e-1;
-        while ((errorDouble >= precisionDouble) && tmpCountInt < 10)  { //100 iteration should be enough for the algorithm to converge, but this can be relaxed
-
-            errorDouble = 0.;
-
-            //These maps will hold row and column sums (updated in each iteration)
-            LinkedHashMap<String, Double> rowSumsMap = new LinkedHashMap<String, Double>();
-            LinkedHashMap<String, Double> colSumsMap = new LinkedHashMap<String, Double>();
-
-            //These maps will hold row and column multipliers (updated in each iteration, and defined as Target/Sum_of_frequencies)
-            LinkedHashMap<String, Double> rowMprMap = new LinkedHashMap<String, Double>();
-            LinkedHashMap<String, Double> colMprMap = new LinkedHashMap<String, Double>();
-
-            //Instead of iterating through rows and columns, go through every element of the map and add to the row / col sum depending on key1 and key2
-            //marriageTypesToAdjust is a map, where key is a MultiKey with two values (Strings): first value identifies one type, second value identifies second type, value stores the frequency of matches.
-            //Instead of iterating through rows and columns, can iterate through each cell of the map and add it to rowSum (and later on to colSum).
-            MapIterator frequenciesIterator = marriageTypesToAdjustMap.mapIterator();
-
-            while (frequenciesIterator.hasNext()) {
-
-                frequenciesIterator.next();
-                MultiKey tmpKeyMultiKey = (MultiKey) frequenciesIterator.getKey(); //Get MultiKey identifying each cell (mk.getKey(0) is row, mk.getKey(1) is column)
-                double tmpValueDouble = 0.;
-                if (rowSumsMap.get(tmpKeyMultiKey.getKey(0).toString()) == null) { //If null value in rowSumsMap, then just put the current value, otherwise add
-
-                    tmpValueDouble = ((Number) frequenciesIterator.getValue()).doubleValue();
-                } else {
-
-                    tmpValueDouble = rowSumsMap.get(tmpKeyMultiKey.getKey(0).toString()) + ((Number) frequenciesIterator.getValue()).doubleValue();
-                }
-
-                //To get row sums add value to a map where key0 is the key
-                rowSumsMap.put(tmpKeyMultiKey.getKey(0).toString(), tmpValueDouble);
-            }
-            //Get target by key and divide by row sum for that key to get row multiplier, same for column later on
-            marriageTargetsByKey.keySet().iterator().forEachRemaining(key -> rowMprMap.put(key, marriageTargetsByKey.get(key)/rowSumsMap.get(key)));
-
-            //After the first iteration, rowSum might = 0 which means division is undefined resulting in null rowMpr entry - adjust to 0 if that happens
-            rowMprMap.keySet().iterator().forEachRemaining(key -> {
-
-                if(rowMprMap.get(key).isNaN()) rowMprMap.put(key, 0.);
-                if(rowMprMap.get(key).isInfinite()) rowMprMap.put(key, 0.);
-            });
-
-            //Now knowing the row multiplier, multiply entries in the frequency map (marriageTypesToAdjust)
-            frequenciesIterator = marriageTypesToAdjustMap.mapIterator();
-            while (frequenciesIterator.hasNext()) {
-
-                frequenciesIterator.next();
-                MultiKey tmpKeyMultiKey = (MultiKey) frequenciesIterator.getKey();
-                double tmpValueDouble = ((Number) frequenciesIterator.getValue()).doubleValue();
-                tmpValueDouble *= rowMprMap.get(tmpKeyMultiKey.getKey(0).toString());
-                frequenciesIterator.setValue(tmpValueDouble);
-            }
-
-            //Have to repeat for columns:
-            frequenciesIterator = marriageTypesToAdjustMap.mapIterator();
-            while (frequenciesIterator.hasNext()) {
-
-                frequenciesIterator.next();
-                MultiKey tmpKeyMultiKey = (MultiKey) frequenciesIterator.getKey();
-                double tmpValueDouble = 0.;
-                if (colSumsMap.get(tmpKeyMultiKey.getKey(1).toString()) == null) {
-
-                    tmpValueDouble = ((Number) frequenciesIterator.getValue()).doubleValue();
-                } else {
-
-                    tmpValueDouble = colSumsMap.get(tmpKeyMultiKey.getKey(1).toString()) + ((Number) frequenciesIterator.getValue()).doubleValue();
-                }
-
-                //To get column sums add value to a map where key1 is the key
-                colSumsMap.put(tmpKeyMultiKey.getKey(1).toString(), tmpValueDouble);
-            }
-
-            marriageTargetsByKey.keySet().iterator().forEachRemaining(key -> colMprMap.put(key, marriageTargetsByKey.get(key)/colSumsMap.get(key)));
-
-            //As for rows, make sure multipliers are defined
-            colMprMap.keySet().iterator().forEachRemaining(key -> {
-
-                if(colMprMap.get(key).isNaN()) colMprMap.put(key, 0.);
-                if(colMprMap.get(key).isInfinite()) colMprMap.put(key, 0.);
-            });
-
-            //Now knowing the col multiplier, multiply entries in the map with frequencies
-            frequenciesIterator = marriageTypesToAdjustMap.mapIterator();
-            while (frequenciesIterator.hasNext()) {
-
-                frequenciesIterator.next();
-                MultiKey tmpKeyMultiKey = (MultiKey) frequenciesIterator.getKey();
-                double tmpValueDouble = ((Number) frequenciesIterator.getValue()).doubleValue();
-                tmpValueDouble *= colMprMap.get(tmpKeyMultiKey.getKey(1).toString());
-                frequenciesIterator.setValue(tmpValueDouble);
-            }
-
-            //Calculate error as the cumulative difference between targets and row and column sums
-            for (String key : marriageTargetsByKey.keySet()) {
-
-                errorDouble += Math.abs(marriageTargetsByKey.get(key) - rowSumsMap.get(key));
-                errorDouble += Math.abs(marriageTargetsByKey.get(key) - colSumsMap.get(key));
-            }
-
-            // System.out.println("Error is " + error + " and iteration is " + tmpCount);
-            // System.out.print(".");
-            tmpCountInt++;
-        }
-
-        //Print out adjusted frequencies
-        marriageTypesToAdjustMap.keySet().iterator().forEachRemaining(key -> System.out.println(key + "=" + marriageTypesToAdjustMap.get(key)));
-
-        /*
-         * Use matching method provided with JAS-mine:
-         */
-        for(String key : keysStringSet) {
-
-            for(String keyOther : keysStringSet) {
-
-                //Get number of people that should be matched for key, keyOther combination
-                int tmpTargetInt;
-                if(marriageTypesToAdjustMap.get(key, keyOther) != null) {
-
-                    tmpTargetInt = (int) Math.round(((Number) marriageTypesToAdjustMap.getValue(key, keyOther)).doubleValue());
-                } else tmpTargetInt = 0;
-
-                //Check if for the combination of key, keyOther matches should be formed:
-                if (tmpTargetInt > 0) {
-
-                    double initialSizeQ1Double = personsToMatch2.get(key).size(); //Number of people to match ("row")
-                    Set<Person> unmatchedQ1Set = new LinkedHashSet<Person>(); //Empty set to store people to match
-                    unmatchedQ1Set.addAll(personsToMatch2.get(key)); //Add people to match
-
-//					unmatchedQ1.stream().iterator().forEachRemaining(persontodisp -> System.out.println("PID " + persontodisp.getKey().getId() + " HHID " + persontodisp.getHousehold().getKey().getId()));
-
-//					System.out.println("Matching "+ initialSizeQ1 +"  persons from " + key + " to " + keyOther);
-
-                    double initialSizeQ2Double = personsToMatch2.get(keyOther).size(); //Number of people to match with ("column")
-                    Set<Person> unmatchedQ2FullSet = new HashSet<Person>(); // Empty set to store people to match with (note that HashSet does not preserve order, so we will sample at random from it)
-                    unmatchedQ2FullSet.addAll(personsToMatch2.get(keyOther)); //Add people to match with
-                    Set<Person> unmatchedQ2Set = new LinkedHashSet<Person>();
-
-                    //Keep only the number of people in unmatchedQ2 that is equal to the adjusted number of matches to create from marriageTypesToAdjust:
-                    Iterator<Person> unmatchedQ2FullSetIterator = unmatchedQ2FullSet.iterator();
-                    for(int n = 0; n < tmpTargetInt && unmatchedQ2FullSetIterator.hasNext(); n++) {
-
-                        Person person = unmatchedQ2FullSetIterator.next();
-                        unmatchedQ2Set.add(person);
-                    }
-
-                    /*
-                    System.out.println("Currently matching " + key + " with " + keyOther + ". The target is " + tmpTarget + " and there are " + unmatchedQ1.size() +
-                                        " people in Q1 and " + unmatchedQ2.size() + " in Q2. (Originally Q2 had " + unmatchedQ2full.size() + " people.");
-                    unmatchedQ2.stream().iterator().forEachRemaining(persontodisp -> System.out.println("PID " + persontodisp.getKey().getId() + " HHID " + persontodisp.getHousehold().getKey().getId()));
-                     */
-                    Pair<Set<Person>, Set<Person>> unmatchedSetsPair = new Pair<>(unmatchedQ1Set, unmatchedQ2Set);
-                    //System.out.println("People in Q1 = " + unmatched.getFirst().size() + " People in Q2 = " + unmatched.getSecond().size());
-                    unmatchedSetsPair = IterativeSimpleMatching.getInstance().matching(
-                            unmatchedSetsPair.getFirst(), null, null, unmatchedSetsPair.getSecond(), null,
-
-                            //This closure calculates the score for potential couple
-                            new MatchingScoreClosure<Person>() {
-                                @Override
-                                public Double getValue(Person male, Person female) {
-
-                                    return cohabitInnov.nextDouble(); //Random matching score
-                                }
-                            },
-
-                            new MatchingClosure<Person>() {
-                                @Override
-                                public void match(Person p1, Person p2) {
-
-                                    //If two people have the same gender or different region, simply don't match and do nothing?
-                                    if (p1.getDgn().equals(p2.getDgn()) || !p1.getRegion().equals(p2.getRegion())) {
-                                        // throw new RuntimeException("Error - both parties to match have the same gender!");
-                                    } else {
-
-                                        p1.setDcpyy(0); //Set years in partnership to 0
-                                        p2.setDcpyy(0);
-
-                                        // update benefit unit and household
-                                        p1.setupNewBenefitUnit(p2, true);
-                                        p1.setToBePartnered(false);         //Probably could be removed
-                                        p2.setToBePartnered(false);
-                                        personsToMatch2.get(key).remove(p1); //Remove matched persons and keep everyone else in the matching queue
-                                        personsToMatch2.get(keyOther).remove(p2);
-                                        personsToMatch.get(p1.getDgn()).get(p1.getRegion()).remove(p1);
-                                        personsToMatch.get(p2.getDgn()).get(p2.getRegion()).remove(p2);
-                                        partnershipsCreated++;
-                                    }
-                                }
-                            }
-                    );
-                }
-            }
-
-            Set<Person> unmatchedSet = new LinkedHashSet<>();
-            unmatchedSet.addAll(personsToMatch2.get(key));
-            for (Person unmatchedPerson : unmatchedSet) {
-
-                if (unmatchedPerson.getDgn().equals(Gender.Male)) malesUnmatched++;
-                else if (unmatchedPerson.getDgn().equals(Gender.Female)) femalesUnmatched++;
-            }
-
-            /*
-            personsToMatch2.get(key).clear();
-            for(Gender gender: Gender.values()) {
-                for(Region region : Parameters.getCountryRegions()) {
-                    personsToMatch.get(gender).get(region).clear();
-                }
-            }
-             */
-        }
-
-        // System.out.println("Total over all years of unmatched males is " + malesUnmatched + " and females " + femalesUnmatched);
-    }
-
-    /**
-     *
      * PROCESS - UNION MATCHING OF SIMULATED POPULATION
      * Matching Based On Earning Potential differential AND age differential
      * (option C in Lia & Matteo's document 'BenefitUnit formation')
@@ -1852,10 +1450,71 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
         }
     }
 
+    public void retirementAlignment() {
+        RetirementAlignment retirementAlignment = new RetirementAlignment(persons);
+        double retirementAdjustment = Parameters.getTimeSeriesValue(getYear(), TimeSeriesVariable.RetirementAdjustment);
+        RootSearch search = getRootSearch(retirementAdjustment, retirementAlignment, 1.0E-2, 1.0E-2, 10); // epsOrdinates and epsFunction determine the stopping condition for the search. For retirementAlignment error term is the difference between target and observed share of partnered individuals.
+
+        // update and exit
+        if (search.isTargetAltered()) {
+            Parameters.putTimeSeriesValue(getYear(), search.getTarget()[0], TimeSeriesVariable.RetirementAdjustment); // If adjustment is altered from the initial value, update the map
+            System.out.println("Retirement adjustment value was " + search.getTarget()[0]);
+        }
+    }
+
+    public void disabilityAlignment() {
+        DisabilityAlignment disabilityAlignment = new DisabilityAlignment(persons);
+        double disabilityAdjustment = Parameters.getTimeSeriesValue(getYear(), TimeSeriesVariable.DisabilityAdjustment);
+        RootSearch search = getRootSearch(disabilityAdjustment, disabilityAlignment, 5.0E-3, 5.0E-3, 2);
+
+        // update and exit
+        if (search.isTargetAltered()) {
+            Parameters.putTimeSeriesValue(getYear(), search.getTarget()[0], TimeSeriesVariable.DisabilityAdjustment); // If adjustment is altered from the initial value, update the map
+            System.out.println("Disability adjustment value was " + search.getTarget()[0]);
+        }
+    }
+
+    public void activityAlignmentMacroShock() {
+        Map<OccupancyMacroShock, MultiKeyCoefficientMap> coefficientMaps = new HashMap<>();
+        coefficientMaps.put(OccupancyMacroShock.Single_Male, Parameters.getCoeffLabourSupplyUtilityMales());
+        coefficientMaps.put(OccupancyMacroShock.Single_Female, Parameters.getCoeffLabourSupplyUtilityFemales());
+        coefficientMaps.put(OccupancyMacroShock.Couple, Parameters.getCoeffLabourSupplyUtilityCouples());
+        coefficientMaps.put(OccupancyMacroShock.Male_AC, Parameters.getCoeffLabourSupplyUtilityACMales());
+        coefficientMaps.put(OccupancyMacroShock.Female_AC, Parameters.getCoeffLabourSupplyUtilityACFemales());
+        coefficientMaps.put(OccupancyMacroShock.Male_With_Dependent, Parameters.getCoeffLabourSupplyUtilityMalesWithDependent());
+        coefficientMaps.put(OccupancyMacroShock.Female_With_Dependent, Parameters.getCoeffLabourSupplyUtilityFemalesWithDependent());
+
+        Map<OccupancyMacroShock, List<String>> regressorsToModify = new HashMap<>();
+        regressorsToModify.put(OccupancyMacroShock.Single_Male, List.of("MaleLeisure"));
+        regressorsToModify.put(OccupancyMacroShock.Single_Female, List.of("FemaleLeisure"));
+        regressorsToModify.put(OccupancyMacroShock.Couple, List.of("MaleLeisure", "FemaleLeisure"));
+        regressorsToModify.put(OccupancyMacroShock.Male_AC, List.of("MaleLeisure"));
+        regressorsToModify.put(OccupancyMacroShock.Female_AC, List.of("FemaleLeisure"));
+        regressorsToModify.put(OccupancyMacroShock.Male_With_Dependent, List.of("MaleLeisure"));
+        regressorsToModify.put(OccupancyMacroShock.Female_With_Dependent, List.of("FemaleLeisure"));
+
+        double initialUtilityAdjustment = Parameters.getTimeSeriesValue(getYear(), TimeSeriesVariable.UtilityAdjustment);
+
+        ActivityAlignmentMacroShock activityAlignment = new ActivityAlignmentMacroShock(
+                persons, benefitUnits, coefficientMaps, regressorsToModify, initialUtilityAdjustment
+        );
+
+        RootSearch search = getRootSearch(initialUtilityAdjustment, activityAlignment, 1.0E-2, 1.0E-2, 1);
+
+        if (search.isTargetAltered()) {
+            double newAdjustment = search.getTarget()[0];
+            Parameters.putTimeSeriesValue(getYear(), newAdjustment, TimeSeriesVariable.UtilityAdjustment);
+            System.out.println("Utility adjustment for all types was " + newAdjustment);
+        }
+    }
+
+
+
+
     public void activityAlignmentSingleMales() {
         double utilityAdjustment = Parameters.getTimeSeriesValue(getYear(), TimeSeriesVariable.UtilityAdjustmentSingleMales);
-        ActivityAlignment activityAlignmentSingleMales = new ActivityAlignment(persons, benefitUnits, Parameters.getCoeffLabourSupplyUtilityMales(), new String[]{"MaleLeisure"}, Occupancy.Single_Male, utilityAdjustment);
-        RootSearch search = getRootSearch(utilityAdjustment, activityAlignmentSingleMales, 1.0E-2, 1.0E-2, 0.5); // epsOrdinates and epsFunction determine the stopping condition for the search.
+        ActivityAlignmentV2 activityAlignmentSingleMales = new ActivityAlignmentV2(benefitUnits, Parameters.getCoeffLabourSupplyUtilityMales(), new String[]{"MaleLeisure"}, Occupancy.Single_Male);
+        RootSearch search = getRootSearch(utilityAdjustment, activityAlignmentSingleMales, 1.0E-2, 1.0E-2, 10); // epsOrdinates and epsFunction determine the stopping condition for the search.
         if (search.isTargetAltered()) {
             Parameters.putTimeSeriesValue(getYear(), search.getTarget()[0], TimeSeriesVariable.UtilityAdjustmentSingleMales); // If adjustment is altered from the initial value, update the map
             System.out.println("Utility adjustment for single males was " + search.getTarget()[0]);
@@ -1864,8 +1523,8 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 
     public void activityAlignmentSingleFemales() {
         double utilityAdjustment = Parameters.getTimeSeriesValue(getYear(), TimeSeriesVariable.UtilityAdjustmentSingleFemales);
-        ActivityAlignment activityAlignmentSingleFemales = new ActivityAlignment(persons, benefitUnits, Parameters.getCoeffLabourSupplyUtilityFemales(), new String[]{"FemaleLeisure"}, Occupancy.Single_Female, utilityAdjustment);
-        RootSearch search = getRootSearch(utilityAdjustment, activityAlignmentSingleFemales, 1.0E-2, 1.0E-2, 2); // epsOrdinates and epsFunction determine the stopping condition for the search.
+        ActivityAlignmentV2 activityAlignmentSingleFemales = new ActivityAlignmentV2(benefitUnits, Parameters.getCoeffLabourSupplyUtilityFemales(), new String[]{"FemaleLeisure"}, Occupancy.Single_Female);
+        RootSearch search = getRootSearch(utilityAdjustment, activityAlignmentSingleFemales, 1.0E-2, 1.0E-2, 10); // epsOrdinates and epsFunction determine the stopping condition for the search.
         if (search.isTargetAltered()) {
             Parameters.putTimeSeriesValue(getYear(), search.getTarget()[0], TimeSeriesVariable.UtilityAdjustmentSingleFemales); // If adjustment is altered from the initial value, update the map
             System.out.println("Utility adjustment for single females was " + search.getTarget()[0]);
@@ -1874,8 +1533,8 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 
     public void activityAlignmentCouples() {
         double utilityAdjustment = Parameters.getTimeSeriesValue(getYear(), TimeSeriesVariable.UtilityAdjustmentCouples);
-        ActivityAlignment activityAlignmentCouples = new ActivityAlignment(persons, benefitUnits, Parameters.getCoeffLabourSupplyUtilityCouples(), new String[]{"MaleLeisure","FemaleLeisure"}, Occupancy.Couple, utilityAdjustment);
-        RootSearch search = getRootSearch(utilityAdjustment, activityAlignmentCouples, 1.0E-2, 1.0E-2, 2); // epsOrdinates and epsFunction determine the stopping condition for the search.
+        ActivityAlignmentV2 activityAlignmentCouples = new ActivityAlignmentV2(benefitUnits, Parameters.getCoeffLabourSupplyUtilityCouples(), new String[]{"MaleLeisure","FemaleLeisure"}, Occupancy.Couple);
+        RootSearch search = getRootSearch(utilityAdjustment, activityAlignmentCouples, 1.0E-2, 1.0E-2, 10); // epsOrdinates and epsFunction determine the stopping condition for the search.
         if (search.isTargetAltered()) {
             Parameters.putTimeSeriesValue(getYear(), search.getTarget()[0], TimeSeriesVariable.UtilityAdjustmentCouples); // If adjustment is altered from the initial value, update the map
             System.out.println("Utility adjustment for couples was " + search.getTarget()[0]);
@@ -1968,139 +1627,20 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 
 
     /**
-     * PROCESS - ALIGN THE SHARE OF EMPLOYED IN THE SIMULATED POPULATION
-     */
-
-    private void employmentAlignment() {
-
-        //Create a nested map to store persons by gender and region
-        LinkedHashMap<Gender, LinkedHashMap<Region, Set<Person>>> personsByGenderAndRegion;
-        personsByGenderAndRegion = new LinkedHashMap<Gender, LinkedHashMap<Region, Set<Person>>>();
-
-        EnumSet<Region> regionEnumSet = null;
-        if (country.equals(Country.IT)) {
-            regionEnumSet = EnumSet.of(Region.ITC, Region.ITH, Region.ITI, Region.ITF, Region.ITG);
-        } else if (country.equals(Country.UK)) {
-            regionEnumSet = EnumSet.of(Region.UKC, Region.UKD, Region.UKE, Region.UKF, Region.UKG, Region.UKH, Region.UKI, Region.UKJ, Region.UKK, Region.UKL, Region.UKM, Region.UKN);
-        }
-
-        for (Gender gender : Gender.values()) {
-            personsByGenderAndRegion.put(gender, new LinkedHashMap<Region, Set<Person>>());
-            for (Region region : regionEnumSet) {
-                personsByGenderAndRegion.get(gender).put(region, new LinkedHashSet<Person>());
-            }
-        }
-
-        //Iterate over persons and add them to the nested map above
-        for (Person person : persons) {
-            if (person.getDag() >= 18 && person.getDag() <= 64) {
-                personsByGenderAndRegion.get(person.getDgn()).get(person.getRegion()).add(person);
-            }
-        }
-
-        //For all gender and region combinations, compare the share of employed persons with the alignment target
-        for (Gender gender : Gender.values()) {
-            for (Region region : regionEnumSet) {
-                double numberEmployed = 0;
-                Set<Person> personsToIterateOver = personsByGenderAndRegion.get(gender).get(region);
-
-                for (Person person : personsToIterateOver) {
-                    numberEmployed += person.getEmployed();
-                }
-
-                double sizeSimulatedSet = personsToIterateOver.size();
-
-                double shareEmployedSimulated = numberEmployed/sizeSimulatedSet;
-                double shareEmployedTargeted = Parameters.getTimeSeriesValue(year, gender.toString(), region.toString(), TimeSeriesVariable.EmploymentAlignment);
-
-                int targetNumberEmployed = (int) (shareEmployedTargeted*sizeSimulatedSet);
-
-
-                //Simulated share of employment exceeds projections => move some individuals at random to non-employment
-                if ((int) numberEmployed > targetNumberEmployed) {
-                    new ResamplingAlignment<Person>().align(
-                            personsToIterateOver,
-                            null,
-                            new AlignmentOutcomeClosure<Person>() {
-                                @Override
-                                public boolean getOutcome(Person person) {
-                                    return person.getLes_c4().equals(Les_c4.EmployedOrSelfEmployed);
-                                }
-
-                                @Override
-                                public void resample(Person person) {
-                                    person.setLes_c4(Les_c4.NotEmployed);
-                                    person.setLabourSupplyWeekly(Labour.ZERO);
-                                }
-                            },
-                            targetNumberEmployed);
-                }
-            }
-        }
-
-    }
-
-    /**
      *
      * PROCESS - ALIGN THE SHARE OF STUDENTS IN THE SIMULATED POPULATION
      *
      */
     private void inSchoolAlignment() {
 
-        int numStudents = 0;
-        int num16to29 = 0;
-        ArrayList<Person> personsLeavingSchool = new ArrayList<Person>();
-        for (Person person : persons) {
-            if (person.getDag() > 15 && person.getDag() < 30) { //Could introduce separate alignment for different age groups, but this is more flexible as it depends on the regression process within the larger alignment target
-                num16to29++;
-                if (person.getLes_c4().equals(Les_c4.Student)) {
-                    numStudents++;
-                }
-                if (person.isToLeaveSchool()) { //Only those who leave school for the first time have toLeaveSchool set to true
-                    personsLeavingSchool.add(person);
-                }
-            }
-        }
+        InSchoolAlignment inSchoolAlignment = new InSchoolAlignment(persons);
+        double inSchoolAdjustment = Parameters.getTimeSeriesValue(getYear(), TimeSeriesVariable.InSchoolAdjustment);
+        RootSearch search = getRootSearch(inSchoolAdjustment, inSchoolAlignment, 1.0E-2, 1.0E-2, 4); // epsOrdinates and epsFunction determine the stopping condition for the search. For inSchoolAlignment error term is the difference between target and observed share of partnered individuals.
 
-        int targetNumberOfPeopleLeavingSchool = numStudents - (int)( (double)num16to29 * ((Number) Parameters.getStudentShareProjections().getValue(country.toString(), year)).doubleValue() );
-
-        System.out.println("Number of students < 30 is " + numStudents + " Persons set to leave school " + personsLeavingSchool.size() + " Number of people below 30 " + num16to29
-                + " Target number of people leaving school " + targetNumberOfPeopleLeavingSchool);
-
-        if (targetNumberOfPeopleLeavingSchool <= 0) {
-            for(Person person : personsLeavingSchool) {
-                person.setToLeaveSchool(false);                    //Best case scenario is to prevent anyone from leaving school in this year as the target share of students is higher than the number of students.  Although we cannot match the target, this is the nearest we can get to it.
-                if(Parameters.systemOut) {
-                    System.out.println("target number of school leavers is not positive.  Force all school leavers to stay at school.");
-                }
-            }
-        } else if (targetNumberOfPeopleLeavingSchool < personsLeavingSchool.size()) {
-            if(Parameters.systemOut) {
-                System.out.println("Schooling alignment: target number of students is " + targetNumberOfPeopleLeavingSchool);
-            }
-            new ResamplingAlignment<Person>().align(
-                    personsLeavingSchool,
-                    null,
-                    new AlignmentOutcomeClosure<Person>() {
-                        @Override
-                        public boolean getOutcome(Person agent) {
-                            return agent.isToLeaveSchool();
-                        }
-
-                        @Override
-                        public void resample(Person agent) {
-                            agent.setToLeaveSchool(false);
-                        }
-                    },
-                    targetNumberOfPeopleLeavingSchool);
-
-            int numPostAlign = 0;
-            for(Person person : persons) {
-                if(person.isToLeaveSchool()) {
-                    numPostAlign++;
-                }
-            }
-            System.out.println("Schooling alignment: aligned number of students is " + numPostAlign);
+        // update and exit
+        if (search.isTargetAltered()) {
+            Parameters.putTimeSeriesValue(getYear(), search.getTarget()[0], TimeSeriesVariable.InSchoolAdjustment); // If adjustment is altered from the initial value, update the map
+            System.out.println("InSchool adjustment value was " + search.getTarget()[0]);
         }
     }
 
@@ -2226,9 +1766,9 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
         FertilityAlignment fertilityAlignment = new FertilityAlignment(persons);
 
         // define limits of search algorithm
-        double fertiityAdjustment = Parameters.getTimeSeriesValue(getYear(), TimeSeriesVariable.FertilityAdjustment);
-        double minVal = Math.max(-4.0, - fertiityAdjustment - 4.0);
-        double maxVal = Math.min(4.0, - fertiityAdjustment + 4.0);
+        double fertilityAdjustment = Parameters.getTimeSeriesValue(getYear(), TimeSeriesVariable.FertilityAdjustment);
+        double minVal = Math.max(-4.0, - fertilityAdjustment - 4.0);
+        double maxVal = Math.min(4.0, - fertilityAdjustment + 4.0);
 
         // run search
         RootSearch search = getRootSearch(0.0, minVal, maxVal, fertilityAlignment, 5.0E-3, 5.0E-3); // epsOrdinates and epsFunction determine the stopping condition for the search. For partnershipAlignment error term is the difference between target and observed share of partnered individuals.
@@ -2544,7 +2084,7 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 
             // save to processed repository
             System.out.println("Saving compiled input data for future reference");
-            persistProcessed();
+    //        persistProcessed();
 
             stopwatch.stop();
             System.out.println("Time elapsed " + stopwatch.getTime()/1000 + " seconds");
@@ -2972,9 +2512,24 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
         return alignFertility;
     }
 
-
     public void setAlignFertility(boolean alignFertility) {
         this.alignFertility = alignFertility;
+    }
+
+    public boolean isAlignRetirement() {
+        return alignRetirement;
+    }
+
+    public boolean isAlignDisability() {
+        return alignDisability;
+    }
+
+    public void setAlignDisability(boolean alignDisability) {
+        this.alignDisability = alignDisability;
+    }
+
+    public void setAlignRetirement(boolean alignRetirement) {
+        this.alignRetirement = alignRetirement;
     }
 
     public void setSaveImperfectTaxDBMatches(boolean flag) {
@@ -2995,6 +2550,10 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 
     public void setAlignInSchool(boolean flag) {
         alignInSchool = flag;
+    }
+
+    public boolean isAlignInSchool() {
+        return alignInSchool;
     }
 
     public void setYear(int year) {
@@ -3072,6 +2631,38 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
 
     public void setResponsesToRegion(boolean responsesToRegion) {
         this.responsesToRegion = responsesToRegion;
+    }
+
+    public MacroScenarioPopulation getMacroShockPopulation() {
+        return macroShockPopulation;
+    }
+
+    public void setMacroShockPopulation(MacroScenarioPopulation macroShockPopulation) {
+        this.macroShockPopulation = macroShockPopulation;
+    }
+
+    public MacroScenarioProductivity getMacroShockProductivity() {
+        return macroShockProductivity;
+    }
+
+    public void setMacroShockProductivity(MacroScenarioProductivity macroShockProductivity) {
+        this.macroShockProductivity = macroShockProductivity;
+    }
+
+    public MacroScenarioGreenPolicy getMacroShockGreenPolicy() {
+        return macroShockGreenPolicy;
+    }
+
+    public void setMacroShockGreenPolicy(MacroScenarioGreenPolicy macroShockGreenPolicy) {
+        this.macroShockGreenPolicy = macroShockGreenPolicy;
+    }
+
+    public boolean isMacroShocksOn() {
+        return macroShocksOn;
+    }
+
+    public void setMacroShocksOn(boolean macroShocksOn) {
+        this.macroShocksOn = macroShocksOn;
     }
 
     public boolean getFlagDefaultToTimeSeriesAverages() { return flagDefaultToTimeSeriesAverages; }
@@ -3219,15 +2810,15 @@ public class SimPathsModel extends AbstractSimulationManager implements EventLis
                     }
                 }
                 MahalanobisDistance mdDualIncome = new MahalanobisDistance(dataDualIncome);
-                MahalanobisDistance mdChildcare = new MahalanobisDistance(dataChildcare);
-                MahalanobisDistance mdDualIncomeChildcare = new MahalanobisDistance(dataDualIncomeChildcare);
+            //    MahalanobisDistance mdChildcare = new MahalanobisDistance(dataChildcare);
+            //    MahalanobisDistance mdDualIncomeChildcare = new MahalanobisDistance(dataDualIncomeChildcare);
 
                 // instantiate Parameters for retrieval
                 Parameters.setTaxdbReferences(taxdbReferences);
                 Parameters.setDonorPool(donorPool);
                 Parameters.setMdDualIncome(mdDualIncome);
-                Parameters.setMdChildcare(mdChildcare);
-                Parameters.setMdDualIncomeChildcare(mdDualIncomeChildcare);
+            //    Parameters.setMdChildcare(mdChildcare);
+            //    Parameters.setMdDualIncomeChildcare(mdDualIncomeChildcare);
 
                 // close database connection
                 txn.commit();

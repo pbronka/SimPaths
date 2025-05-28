@@ -1,10 +1,10 @@
 package simpaths.model.decisions;
 
 
+import simpaths.model.SimPathsModel;
+
 import java.time.Duration;
 import java.time.Instant;
-
-import simpaths.model.SimPathsModel;
 
 
 /**

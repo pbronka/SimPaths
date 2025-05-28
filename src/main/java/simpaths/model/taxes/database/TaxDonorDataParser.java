@@ -231,10 +231,6 @@ public class TaxDonorDataParser {
                 + "ALTER TABLE " + personTableName + " ALTER COLUMN DDI int;"
                 + "ALTER TABLE " + personTableName + " ALTER COLUMN DDI RENAME TO DLLTSD;"
 
-                //social care provision
-                + "ALTER TABLE " + personTableName + " ALTER COLUMN LCR01 int;"
-                + "ALTER TABLE " + personTableName + " ALTER COLUMN LCR01 RENAME TO CARER;"
-
                 //Labour hours
                 //XXX: Could set " + Parameters.HOURS_WORKED_WEEKLY + ", earnings, labour cost etc. to 0 if retired.
                 // However, the data does not conform - see idperson 101, who is retired pensioner aged 80, but who declares lhw = 40
